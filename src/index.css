@@ -1,0 +1,220 @@
+@import "tailwindcss";
+
+body,
+html,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #C4B8A0;
+  border-radius: 2px;
+}
+
+/* Backface visibility for card flips */
+.backface-hidden {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Perspective for 3D transforms */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+/* Light board game table — warm linen/felt */
+.table-bg {
+  background-color: #E8DFD0;
+  background-image:
+    /* Subtle warm vignette */
+    radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(180, 165, 140, 0.3) 100%),
+    /* Gentle center warmth */
+    radial-gradient(ellipse at 50% 40%, rgba(255, 248, 235, 0.5) 0%, transparent 60%),
+    /* Linen texture */
+    repeating-linear-gradient(0deg,
+      transparent,
+      transparent 30px,
+      rgba(0, 0, 0, 0.015) 30px,
+      rgba(0, 0, 0, 0.015) 31px),
+    repeating-linear-gradient(90deg,
+      transparent,
+      transparent 30px,
+      rgba(0, 0, 0, 0.01) 30px,
+      rgba(0, 0, 0, 0.01) 31px);
+}
+
+/* Card hover glow */
+.card-glow {
+  transition: all 0.2s ease;
+}
+
+.card-glow:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Pulse animation for active player */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 125, 216, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 8px rgba(59, 125, 216, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 125, 216, 0);
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.5s infinite;
+}
+
+/* Typing dots animation */
+@keyframes bounce-dot {
+
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
+.bounce-dot:nth-child(1) {
+  animation: bounce-dot 1s infinite 0s;
+}
+
+.bounce-dot:nth-child(2) {
+  animation: bounce-dot 1s infinite 0.15s;
+}
+
+.bounce-dot:nth-child(3) {
+  animation: bounce-dot 1s infinite 0.3s;
+}
+
+/* Game title font */
+.font-display {
+  font-family: 'Lilita One', cursive;
+}
+
+/* Ambient Backgrounds */
+.bg-ambient-blue {
+  background: radial-gradient(circle at 50% 120%, rgba(59, 125, 216, 0.35) 0%, rgba(59, 125, 216, 0.08) 50%, transparent 100%);
+  background-color: rgba(59, 125, 216, 0.12);
+}
+
+.bg-ambient-red {
+  background: radial-gradient(circle at 50% 120%, rgba(217, 79, 59, 0.35) 0%, rgba(217, 79, 59, 0.08) 50%, transparent 100%);
+  background-color: rgba(217, 79, 59, 0.12);
+}
+
+/* Phase Animations */
+
+/* THINKING: Deep, slow breathing with scale and brightness shifts */
+@keyframes thinking-breathe {
+
+  0%,
+  100% {
+    opacity: 0.6;
+    filter: brightness(0.95);
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.05) contrast(1.05);
+    transform: scale(1.02);
+  }
+}
+
+/* CHATTING: Subtle lateral shifting to represent conversation back-and-forth */
+@keyframes chat-shift {
+  0% {
+    transform: translateX(-1%) scale(1.02);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: translateX(1%) scale(1.02);
+    opacity: 0.95;
+  }
+
+  100% {
+    transform: translateX(-1%) scale(1.02);
+    opacity: 0.8;
+  }
+}
+
+/* GUESSING: Intense, faster pulsing with higher contrast and saturation */
+@keyframes guessing-intense {
+
+  0%,
+  100% {
+    opacity: 0.8;
+    filter: contrast(1.05) saturate(1.1);
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    filter: contrast(1.15) saturate(1.3);
+    transform: scale(1.04);
+  }
+}
+
+/* CLUE GIVE: Initial spotlight flash then steady aura */
+@keyframes clue-flash {
+
+  0%,
+  100% {
+    opacity: 0.85;
+    filter: brightness(1);
+    transform: scale(1.01);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.2) contrast(1.1);
+    transform: scale(1.03);
+  }
+}
+
+.state-thinking .bg-ambient-blue,
+.state-thinking .bg-ambient-red {
+  animation: thinking-breathe 4s ease-in-out infinite;
+}
+
+.state-chatting .bg-ambient-blue,
+.state-chatting .bg-ambient-red {
+  animation: chat-shift 5s ease-in-out infinite;
+}
+
+.state-guessing .bg-ambient-blue,
+.state-guessing .bg-ambient-red {
+  animation: guessing-intense 2.5s ease-in-out infinite;
+}
+
+.state-clue .bg-ambient-blue,
+.state-clue .bg-ambient-red {
+  animation: clue-flash 3s ease-in-out infinite;
+}
