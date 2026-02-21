@@ -12,7 +12,9 @@ interface GameActions {
   setPlusOneAvailable: (v: boolean) => void;
   revealCard: (word: string) => void;
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => string;
+  appendReplayMessage: (msg: ChatMessage) => void;
   updateMessage: (id: string, content: string) => void;
+  setDurationMs: (msgId: string, durationMs: number) => void;
   switchTeam: () => void;
   setWinner: (team: Team) => void;
   setIsRunning: (v: boolean) => void;
@@ -20,12 +22,19 @@ interface GameActions {
   setTtsEnabled: (v: boolean) => void;
   incrementConversationRound: () => void;
   resetConversationRound: () => void;
-  setOperativeReflection: (playerId: string, reflection: string) => void;
-  clearOperativeReflections: () => void;
   rotateCaptain: (team: Team) => void;
   toggleRevealedMode: () => void;
   setPlayerModel: (playerId: string, modelId: string, modelName: string) => void;
-  setThinkingPhaseEnabled: (v: boolean) => void;
+  setMasterModel: (modelId: string, modelName: string) => void;
+  clearWinner: () => void;
+  startPlayback: () => void;
+  stopPlayback: () => void;
+  setPlaybackSpeed: (speed: number) => void;
+  loadMatch: (state: Partial<GameState>) => void;
+  goToPlaybackIndex: (index: number) => void;
+  toggleVideoMode: () => void;
+  setIsBoardRevealed: (v: boolean) => void;
+  toggleFooterHidden: () => void;
 }
 
 type GameStore = GameState & GameActions;
@@ -52,9 +61,16 @@ function createInitialState(): GameState {
     speed: 1,
     ttsEnabled: true,
     conversationRound: 0,
-    operativeReflections: {},
     isRevealedMode: false,
-    thinkingPhaseEnabled: true,
+    isVideoMode: false,
+    isBoardRevealed: true,
+    isFooterHidden: false,
+    masterModel: { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+    playbackMode: false,
+    playbackMessages: [],
+    playbackSpeed: 1,
+    currentPlaybackIndex: 0,
+    originalReplayBoard: [],
   };
 }
 
@@ -95,9 +111,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return id;
   },
 
+  appendReplayMessage: (msg) => {
+    set(state => ({ messages: [...state.messages, msg] }));
+  },
+
   updateMessage: (id, content) => {
     set(state => ({
       messages: state.messages.map(m => m.id === id ? { ...m, content } : m)
+    }));
+  },
+
+  setDurationMs: (id, durationMs) => {
+    set(state => ({
+      messages: state.messages.map(m => m.id === id ? { ...m, durationMs } : m)
     }));
   },
 
@@ -123,13 +149,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   resetConversationRound: () => set({ conversationRound: 0 }),
 
-  setOperativeReflection: (playerId, reflection) =>
-    set(state => ({
-      operativeReflections: { ...state.operativeReflections, [playerId]: reflection },
-    })),
-
-  clearOperativeReflections: () => set({ operativeReflections: {} }),
-
   rotateCaptain: (team) => {
     const { players } = get();
     const ops = players.filter(p => p.team === team && p.role === 'operative');
@@ -146,11 +165,103 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   toggleRevealedMode: () => set(state => ({ isRevealedMode: !state.isRevealedMode })),
 
+  toggleVideoMode: () => set(state => {
+    const newVideoMode = !state.isVideoMode;
+    return {
+      isVideoMode: newVideoMode,
+      isBoardRevealed: !newVideoMode || state.isRunning,
+      isFooterHidden: newVideoMode, // auto hide footer in video mode
+    };
+  }),
+
+  setIsBoardRevealed: (v) => set({ isBoardRevealed: v }),
+
+  toggleFooterHidden: () => set(state => ({ isFooterHidden: !state.isFooterHidden })),
+
   setPlayerModel: (playerId, modelId, modelName) => set(state => ({
     players: state.players.map(p =>
       p.id === playerId ? { ...p, model: modelId, name: modelName } : p
     )
   })),
 
-  setThinkingPhaseEnabled: (v) => set({ thinkingPhaseEnabled: v }),
+  setMasterModel: (modelId, modelName) => set({ masterModel: { id: modelId, name: modelName } }),
+
+  clearWinner: () => set({ winner: null }),
+
+  startPlayback: () => set({ playbackMode: true, isRunning: true }),
+
+  stopPlayback: () => set({ isRunning: false }),
+
+  setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
+
+  loadMatch: (state) => {
+    if (!state.board || !state.players || !state.messages) return;
+
+    const resetBoard = state.board.map(c => ({ ...c, revealed: false }));
+
+    set({
+      ...createInitialState(),
+      board: resetBoard,
+      originalReplayBoard: resetBoard,
+      players: state.players,
+      masterModel: state.masterModel || { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+      playbackMessages: state.messages,
+      playbackMode: true,
+      isRunning: false,
+      phase: 'setup',
+      currentPlaybackIndex: 0,
+      messages: [],
+    });
+  },
+
+  goToPlaybackIndex: (index) => {
+    const state = get();
+    if (!state.playbackMode || state.playbackMessages.length === 0) return;
+
+    const clampedIndex = Math.max(0, Math.min(index, state.playbackMessages.length - 1));
+
+    const board = state.originalReplayBoard.map(c => ({ ...c }));
+    let blueScore = 0;
+    let redScore = 0;
+    let winner: import('../types/game').Team | null = null;
+    let currentClue: import('../types/game').Clue | null = null;
+    let activePlayerId: string | null = null;
+
+    // Generate view up to the clamped index
+    // if index is -1, we want 0 messages. Let's say if index >= 0, we slice to clampedIndex + 1.
+    // If we want a truly zero state, we need to allow index -1. But 0 is fine, it's just the first message.
+    const messages = state.playbackMessages.slice(0, clampedIndex + 1);
+
+    messages.forEach(msg => {
+      activePlayerId = msg.playerId;
+      if (msg.type === 'clue') {
+        const parts = msg.content.split(':');
+        if (parts.length >= 2) {
+          currentClue = { word: parts[0].trim(), number: parseInt(parts[1].trim(), 10) };
+        }
+      } else if (msg.type === 'guess_result') {
+        const [word] = msg.content.split(':');
+        const card = board.find(c => c.word.toUpperCase() === word.toUpperCase() && !c.revealed);
+        if (card) {
+          card.revealed = true;
+          if (card.type === 'blue') blueScore++;
+          if (card.type === 'red') redScore++;
+        }
+      } else if (msg.type === 'system' && msg.content.includes('WINS!')) {
+        if (msg.content.includes('BLUE TEAM WINS')) winner = 'blue';
+        if (msg.content.includes('RED TEAM WINS')) winner = 'red';
+      }
+    });
+
+    set({
+      board,
+      blueScore,
+      redScore,
+      winner,
+      currentClue,
+      activePlayerId,
+      messages,
+      currentPlaybackIndex: clampedIndex
+    });
+  },
 }));

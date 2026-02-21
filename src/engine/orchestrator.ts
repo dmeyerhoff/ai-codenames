@@ -4,7 +4,6 @@ import { speak, stopSpeaking } from '../services/tts';
 import { parseClue, parseGuess, cleanResponse } from './responseParser';
 import {
   buildSpymasterPrompt,
-  buildOperativeReflectionPrompt,
   buildConversationPrompt,
   buildGuessingPrompt,
   buildReactionPrompt,
@@ -20,7 +19,8 @@ function delay(ms: number): Promise<void> {
 }
 
 function isRunning(): boolean {
-  return useGameStore.getState().isRunning;
+  const state = useGameStore.getState();
+  return state.isRunning && !state.playbackMode;
 }
 
 function getStore() {
@@ -39,18 +39,10 @@ async function speakIfEnabled(text: string, voiceId: string) {
 async function repairResponseWithGameMaster(
   failedText: string,
   expectedFormat: string,
-  team: Team
+  msgId: string
 ): Promise<string> {
   const store = getStore();
-  store.addMessage({
-    playerId: 'system',
-    playerName: 'Game Master',
-    team,
-    content: '🔧 Repairing unparseable AI format...',
-    type: 'system',
-  });
-
-  const prompt = `You are the Game Master AI. A player AI failed to output its response in the correct format.
+  const prompt = `You are a Game Master AI silently repairing an AI's malformed response.
 
 Expected format:
 ${expectedFormat}
@@ -60,13 +52,62 @@ Failed response:
 ${failedText}
 """
 
-Please read their response, understand their intent, and output ONLY the corrected text exactly in the expected format. Do not add any conversational text or markdown formatting. Just the raw, repaired output.`;
+Rewrite their response to be exactly in the expected format. Output ONLY the valid text, with no system commentary.`;
 
   try {
-    return await callOpenRouter('google/gemini-3-flash-preview', prompt);
+    store.updateMessage(msgId, '*reformatting output...*');
+    const repaired = await callOpenRouter(store.masterModel.id, prompt);
+    store.updateMessage(msgId, repaired);
+    return repaired;
   } catch (err) {
     console.error('Repair failed', err);
+    store.updateMessage(msgId, failedText);
     return failedText;
+  }
+}
+
+async function safeCallPlayerModel(
+  player: import('../types/game').Player,
+  prompt: string,
+  msgId: string,
+  systemPrompt: string,
+): Promise<string> {
+  const store = getStore();
+  const startTime = Date.now();
+  try {
+    const response = await callOpenRouter(
+      player.model,
+      prompt,
+      (text) => store.updateMessage(msgId, text),
+      systemPrompt
+    );
+    if (!response || response.trim() === '') throw new Error('Empty response');
+
+    store.setDurationMs(msgId, Date.now() - startTime);
+    return response;
+  } catch (err) {
+    console.warn(`[Fallback] ${player.model} failed. Using Game Master fallback.`, err);
+
+    const fallbackPrompt = `The original AI failed to formulate a response. Impersonate them and fulfill this prompt perfectly. Keep it extremely brief and natural. Do not mention that you are a fallback.
+    
+Original Prompt:
+"""
+${prompt}
+"""`;
+
+    store.updateMessage(msgId, '*connection unstable... rerouting...*');
+    await delay(500);
+    store.updateMessage(msgId, '');
+
+    const fallbackResponse = await callOpenRouter(
+      store.masterModel.id,
+      fallbackPrompt,
+      (text) => store.updateMessage(msgId, text),
+      systemPrompt
+    );
+
+    store.setDurationMs(msgId, Date.now() - startTime);
+    return fallbackResponse;
   }
 }
 
@@ -75,7 +116,8 @@ async function generateMessageSummary(
   playerName: string,
   team: Team,
   rawText: string,
-  type: 'monologue' | 'chat'
+  type: 'monologue' | 'chat',
+  currentClue: string
 ) {
   const store = getStore();
 
@@ -92,19 +134,20 @@ async function generateMessageSummary(
     ? `just finished their private internal monologue`
     : `just sent a message in the team chat`;
 
-  const prompt = `You are the Game Master AI. A ${team} team player (${playerName}) ${contextStr}.
+  const prompt = `You are the Game Master AI. A ${team} team player (${playerName}) ${contextStr} regarding the clue "${currentClue}".
 
 Here is their exact message/thought process:
 """
 ${rawText}
 """
 
-Summarize what they are saying or thinking about in EXACTLY 1 short, punchy sentence. Focus on keywords they are considering.
-Example: DeepSeek is considering FLY and LONDON because they fit the Geography clue.
+Summarize what they are saying or thinking about in EXACTLY 1 short, punchy sentence. 
+CRITICAL: You MUST explicitly mention the clue in your summary.
+Example: For the clue 'FLY: 2', DeepSeek is considering LONDON and BIRD.
 DO NOT use quotes. Just output the summary sentence directly.`;
 
   try {
-    const summary = await callOpenRouter('google/gemini-3-flash-preview', prompt);
+    const summary = await callOpenRouter(store.masterModel.id, prompt);
     store.updateMessage(summaryMsgId, `💡 ${summary}`);
   } catch (err) {
     console.error('Failed to generate summary', err);
@@ -114,8 +157,12 @@ DO NOT use quotes. Just output the summary sentence directly.`;
 
 export async function runGame() {
   const store = getStore();
+  if (store.playbackMode) return;
+
   store.setIsRunning(true);
   store.setPhase('spymaster_thinking');
+
+  if (!isRunning()) return;
 
   try {
     while (isRunning()) {
@@ -185,30 +232,45 @@ async function runTeamTurn(team: Team) {
     hidden: false, // Spymaster thinking is always visible
   });
 
-  const spymasterResponse = await callOpenRouter(
-    spymaster.model,
+  // Delay starting the AI if in video mode to let the intro text and animations play out sequentially
+  if (s.isVideoMode) {
+    await delay(2500);
+  }
+
+  const spymasterResponse = await safeCallPlayerModel(
+    spymaster,
     spymasterPrompt,
-    (text) => getStore().updateMessage(spymasterMsgId, text),
+    spymasterMsgId,
     `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
   );
 
   // Background summary generation
-  generateMessageSummary(spymaster.id, spymaster.name, team, spymasterResponse, 'monologue');
+  generateMessageSummary(spymaster.id, spymaster.name, team, spymasterResponse, 'monologue', 'thinking of clue...');
 
   let clue = parseClue(spymasterResponse);
-  if (!clue) {
+  let isIllegal = clue ? board.some(c => !c.revealed && c.word.toUpperCase() === clue!.word.toUpperCase()) : false;
+
+  if (!clue || isIllegal) {
+    let repairFormat = 'Target Words: [List]\nCLUE: [WORD]: [NUMBER]\nReasoning: [Explanation]';
+    if (isIllegal && clue) {
+      repairFormat = `The previous AI provided an illegal clue: "${clue.word}". This word is currently visible on the board. This is strictly against the rules!\nRewrite their response to provide a completely new, valid clue that IS NOT on the board.\n\nExpected Format:\nTarget Words: [List]\nCLUE: [WORD]: [NUMBER]\nReasoning: [Explanation]`;
+    }
+
     const repaired = await repairResponseWithGameMaster(
       spymasterResponse,
-      'CLUE: [WORD]: [NUMBER]\nReasoning: [Explanation]',
-      team
+      repairFormat,
+      spymasterMsgId
     );
     clue = parseClue(repaired);
-    if (!clue) {
+    isIllegal = clue ? board.some(c => !c.revealed && c.word.toUpperCase() === clue!.word.toUpperCase()) : false;
+
+    if (!clue || isIllegal) {
+      const reason = isIllegal ? `provided an illegal clue ("${clue?.word}") that is currently visible on the board` : `failed to provide a valid clue format`;
       s.addMessage({
         playerId: 'system',
         playerName: 'System',
         team,
-        content: `Could not parse clue from ${spymaster.name}'s response even after repair. Turn is skipped.`,
+        content: `Could not parse clue from ${spymaster.name}'s response: ${reason} even after repair attempt. Turn is skipped.`,
         type: 'system',
       });
       return;
@@ -232,45 +294,8 @@ async function runTeamTurn(team: Team) {
   });
 
   await speakIfEnabled(`${clue.word}, ${clue.number}`, spymaster.voiceId);
-  await delay(2000);
-
-  if (!isRunning()) return;
-
-  // 2. Operatives reflect individually
-  s.setPhase('operatives_reflecting');
-  s.clearOperativeReflections();
-  const operatives = players.filter(p => p.team === team && p.role === 'operative');
-
-  if (getStore().thinkingPhaseEnabled) {
-    for (const op of operatives) {
-      if (!isRunning()) return;
-      s.setActivePlayer(op.id);
-
-      const reflectionPrompt = buildOperativeReflectionPrompt(op, board, players, clue);
-
-      const refMsgId = s.addMessage({
-        playerId: op.id,
-        playerName: op.name,
-        team,
-        content: '',
-        type: 'internal_monologue',
-        prompt: reflectionPrompt,
-      });
-
-      const reflection = await callOpenRouter(
-        op.model,
-        reflectionPrompt,
-        (text) => getStore().updateMessage(refMsgId, text),
-        `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
-      );
-
-      // Background summary generation
-      generateMessageSummary(op.id, op.name, team, reflection, 'monologue');
-
-      s.setOperativeReflection(op.id, reflection);
-      await delay(1000);
-    }
-  }
+  const extraDelay = s.isVideoMode ? 3500 : 2000;
+  await delay(extraDelay);
 
   if (!isRunning()) return;
 
@@ -278,6 +303,7 @@ async function runTeamTurn(team: Team) {
   s.setPhase('team_conversation');
   s.resetConversationRound();
 
+  const operatives = players.filter(p => p.team === team && p.role === 'operative');
   const captain = operatives.find(p => p.isCaptain)!;
   const nonCaptains = operatives.filter(p => !p.isCaptain);
 
@@ -287,7 +313,7 @@ async function runTeamTurn(team: Team) {
     .filter(m => m.timestamp < (turnStartMsg?.timestamp || Date.now()) && m.type === 'summary' && m.team === team)
     .map(m => m.content.replace(/^💡\s*/, ''));
 
-  const captainPrompt = buildConversationPrompt(captain, board, players, clue, [], true, previousTeamSummaries, getStore().operativeReflections[captain.id]);
+  const captainPrompt = buildConversationPrompt(captain, board, players, clue, [], true, previousTeamSummaries);
   const capMsgId = s.addMessage({
     playerId: captain.id,
     playerName: captain.name,
@@ -297,15 +323,19 @@ async function runTeamTurn(team: Team) {
     prompt: captainPrompt,
   });
 
-  const captainStart = await callOpenRouter(
-    captain.model,
+  if (s.isVideoMode) {
+    await delay(2500); // wait for OPERATIVES splash
+  }
+
+  const captainStart = await safeCallPlayerModel(
+    captain,
     captainPrompt,
-    (text) => getStore().updateMessage(capMsgId, text),
+    capMsgId,
     `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
   );
 
   // Background summary generation
-  generateMessageSummary(captain.id, captain.name, team, captainStart, 'chat');
+  generateMessageSummary(captain.id, captain.name, team, captainStart, 'chat', `${clue.word}: ${clue.number}`);
 
   await speakIfEnabled(cleanResponse(captainStart), captain.voiceId);
   await delay(1000);
@@ -322,7 +352,7 @@ async function runTeamTurn(team: Team) {
       m => m.type === 'conversation' && m.team === team
     );
 
-    const opPrompt = buildConversationPrompt(op, board, players, clue, recentConvo, false, previousTeamSummaries, getStore().operativeReflections[op.id]);
+    const opPrompt = buildConversationPrompt(op, board, players, clue, recentConvo, false, previousTeamSummaries);
     const opMsgId = s.addMessage({
       playerId: op.id,
       playerName: op.name,
@@ -332,15 +362,15 @@ async function runTeamTurn(team: Team) {
       prompt: opPrompt,
     });
 
-    const response = await callOpenRouter(
-      op.model,
+    const response = await safeCallPlayerModel(
+      op,
       opPrompt,
-      (text) => getStore().updateMessage(opMsgId, text),
+      opMsgId,
       `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
     );
 
     // Background summary generation
-    generateMessageSummary(op.id, op.name, team, response, 'chat');
+    generateMessageSummary(op.id, op.name, team, response, 'chat', `${clue.word}: ${clue.number}`);
 
     await speakIfEnabled(cleanResponse(response), op.voiceId);
     await delay(1000);
@@ -355,7 +385,7 @@ async function runTeamTurn(team: Team) {
       m => m.type === 'conversation' && m.team === team
     );
 
-    const finalCapPrompt = buildConversationPrompt(captain, board, players, clue, finalConvo, false, previousTeamSummaries, getStore().operativeReflections[captain.id]);
+    const finalCapPrompt = buildConversationPrompt(captain, board, players, clue, finalConvo, false, previousTeamSummaries);
     const finalCapMsgId = s.addMessage({
       playerId: captain.id,
       playerName: captain.name,
@@ -365,15 +395,15 @@ async function runTeamTurn(team: Team) {
       prompt: finalCapPrompt,
     });
 
-    const finalResponse = await callOpenRouter(
-      captain.model,
+    const finalResponse = await safeCallPlayerModel(
+      captain,
       finalCapPrompt,
-      (text) => getStore().updateMessage(finalCapMsgId, text),
+      finalCapMsgId,
       `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
     );
 
     // Background summary generation
-    generateMessageSummary(captain.id, captain.name, team, finalResponse, 'chat');
+    generateMessageSummary(captain.id, captain.name, team, finalResponse, 'chat', `${clue.word}: ${clue.number}`);
 
     await delay(1000);
   }
@@ -412,10 +442,10 @@ async function runTeamTurn(team: Team) {
       prompt: guessingPrompt,
     });
 
-    const guessResponse = await callOpenRouter(
-      captain.model,
+    const guessResponse = await safeCallPlayerModel(
+      captain,
       guessingPrompt,
-      (text) => getStore().updateMessage(guessMsgId, text),
+      guessMsgId,
       `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
     );
 
@@ -425,7 +455,7 @@ async function runTeamTurn(team: Team) {
       const repaired = await repairResponseWithGameMaster(
         guessResponse,
         'GUESS: [EXACT WORD FROM BOARD]\nReasoning: [Explanation]\n(Or PASS if you want to pass)',
-        team
+        guessMsgId
       );
       guess = parseGuess(repaired, validWords);
     }
@@ -456,8 +486,8 @@ async function runTeamTurn(team: Team) {
       playerId: 'system',
       playerName: 'Game Master',
       team,
-      content: `${guess} → ${resultLabel}`,
-      type: 'system',
+      content: `${guess}:${card.type}:${resultLabel}`,
+      type: 'guess_result',
     });
 
     await speakIfEnabled(`${guess}. ${resultLabel}`, captain.voiceId);
@@ -536,10 +566,10 @@ async function runTeamTurn(team: Team) {
       prompt: reactionPrompt,
     });
 
-    const reaction = await callOpenRouter(
-      op.model,
+    const reaction = await safeCallPlayerModel(
+      op,
       reactionPrompt,
-      (text) => getStore().updateMessage(reactMsgId, text),
+      reactMsgId,
       `You are playing Codenames with other AIs.\n\n${GAME_RULES}`
     );
 

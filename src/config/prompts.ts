@@ -70,10 +70,10 @@ ${formatGrid(board)}
 ## Board State (Secret - Only You Can See This)
 
 Remaining cards:
-- ${team.charAt(0).toUpperCase() + team.slice(1)} agents: ${state.remaining[team].join(', ') || 'None'}
-- ${otherTeam.charAt(0).toUpperCase() + otherTeam.slice(1)} agents: ${state.remaining[otherTeam].join(', ') || 'None'}
-- Bystanders: ${state.remaining.bystander.join(', ') || 'None'}
-- Assassin: ${state.remaining.assassin.join(', ') || 'None'}
+- ${team.charAt(0).toUpperCase() + team.slice(1)} agents (${state.remaining[team].length}): ${state.remaining[team].join(', ') || 'None'}
+- ${otherTeam.charAt(0).toUpperCase() + otherTeam.slice(1)} agents (${state.remaining[otherTeam].length}): ${state.remaining[otherTeam].join(', ') || 'None'}
+- Bystanders (${state.remaining.bystander.length}): ${state.remaining.bystander.join(', ') || 'None'}
+- Assassin (${state.remaining.assassin.length}): ${state.remaining.assassin.join(', ') || 'None'}
 
 Revealed cards:
 - ${team.charAt(0).toUpperCase() + team.slice(1)} agents: ${state.revealed[team].join(', ') || 'None'}
@@ -88,53 +88,23 @@ Revealed cards:
   prompt += `\n\n## Your Task
 Give a clue to your operatives. Format your response EXACTLY like this:
 
-<thought> Briefly explain your reasoning here (max 150 words). </thought>
+Target Words: [List the exact words you are targeting, and verify their alignment]
 CLUE: [single word]: [number]
+Reasoning: [Explain briefly why this clue connects to your target words, and crucially, explain why you are confident it avoids associating with the opponent's agents, bystanders, or the assassin.]
+
+STRATEGIC GUIDELINES:
+1. Board State Awareness: Always check the score and compare your remaining agents to the opponent's.
+2. The "Hail Mary" Play: If the opponent is 1 or 2 words away from winning and you are far behind, you should take massive risks. In this desperate scenario, give a single clue that targets ALL of your remaining words. A weak or abstract connection that gives your team a 1% chance to win is better than a safe clue that mathematically guarantees a loss.
 
 CRITICAL RULES:
-1. Your clue MUST target words that are currently on the board. Do not hallucinate words that are not on the board.
-2. Prioritize direct definitions and strong, obvious associations over weak, lateral, or multi-step logical jumps.`;
+1. Your clue MUST NOT be any word (or derivation of a word) that is currently visible on the board.
+2. Your clue MUST target words that are currently on the board. Do not hallucinate words that are not on the board.
+3. Prioritize direct definitions and strong, obvious associations over weak, lateral, or multi-step logical jumps.`;
 
   return prompt;
 }
 
-export function buildOperativeReflectionPrompt(
-  player: Player,
-  board: Card[],
-  players: Player[],
-  clue: Clue,
-): string {
-  const state = getBoardStateForOperatives(board);
-  const team = player.team;
 
-  let prompt = ``;
-
-  prompt += `## Your Role
-You are a ${team.toUpperCase()} team OPERATIVE (${player.name}).${player.isCaptain ? ' You are the current CAPTAIN.' : ''}
-
-Your team:
-${getTeamRoster(players, team)}
-
-## Board
-${formatGrid(board)}
-
-## Board State (What You Can See)
-
-Revealed cards:
-- Blue agents: ${state.revealed.blue.join(', ') || 'None'}
-- Red agents: ${state.revealed.red.join(', ') || 'None'}
-- Bystanders: ${state.revealed.bystander.join(', ') || 'None'}
-
-Unknown cards: ${state.unknown.join(', ')}
-
-## Spymaster's Clue: "${clue.word}: ${clue.number}"
-
-## Your Task
-This is the INDEPENDENT REASONING phase. Think through the clue as an internal monologue. Consider which ${clue.number} words best connect to "${clue.word}". Be conversational - think out loud naturally, no headers or bullet points. Consider risks (assassin, bystanders) and rank your confidence in each guess. Keep it extremely brief (1-2 sentences maximum).
-CRITICAL RULE: You MUST ONLY consider words explicitly listed in the 'Unknown cards' list above. DO NOT hallucinate words that are not there.`;
-
-  return prompt;
-}
 
 export function buildConversationPrompt(
   player: Player,
@@ -144,7 +114,6 @@ export function buildConversationPrompt(
   conversationSoFar: ChatMessage[],
   isStarter: boolean,
   previousTeamSummaries: string[],
-  operativeReflection?: string,
 ): string {
   const state = getBoardStateForOperatives(board);
   const team = player.team;
@@ -160,13 +129,15 @@ ${getTeamRoster(players, team)}
 
 Clue from spymaster: "${clue.word}: ${clue.number}"
 
+## Score State
+- Blue Team: ${state.revealed.blue.length} / 9 agents found
+- Red Team: ${state.revealed.red.length} / 8 agents found
+
 Unknown cards currently on board: ${state.unknown.join(', ')}
 
 `;
 
-  if (operativeReflection) {
-    prompt += `## Your Initial Thoughts\nBefore this conversation, you thought:\n"${operativeReflection}"\n\n`;
-  }
+
 
   if (previousTeamSummaries.length > 0) {
     prompt += `## Your Team's Previous Thoughts (From Past Rounds)
@@ -176,12 +147,19 @@ ${previousTeamSummaries.map(s => `- ${s}`).join('\n')}
   }
 
   if (isStarter) {
-    prompt += `You are starting the team discussion as captain. Share your thinking on the best guesses and ask your teammates for their input. Be conversational and natural.\n`;
+    prompt += `You are starting the team discussion as captain. Share your thinking on the best guesses and ask your teammates for their input. Be conversational and natural.
+Note: Be extremely conservative with using your "+1" bonus guess. Only use it to catch up on previously missed clues if you are 100% certain. Otherwise, pass your turn to avoid hitting the assassin or enemy agents.\n`;
   } else {
     prompt += `Guidelines:
 - Give explicit verbal agreement if you want the captain to go ahead with guessing
 - If you disagree, be argumentative and persuasive
-- If you think more discussion is needed, say so\n`;
+- If you think more discussion is needed, say so
+- Be extremely conservative about extending to a +1 bonus guess. Advise the captain to pass unless you are highly certain.
+
+STRATEGIC GUIDELINES:
+1. Score Literacy: Compare your team's progress to the opponent's. 
+2. Calculated Risk: While usually conservative, if the opponent is at 8/9 (one word from winning) and your team is at 4/8, being "safe" is effectively surrendering. In desperate endgame scenarios, you should be willing to guess on weaker connections. A risky guess that might be right is better than passing and letting the opponent win on their next turn.
+`;
   }
 
   const validMessages = conversationSoFar.filter(msg => {
@@ -230,6 +208,10 @@ ${getTeamRoster(players, team)}
 
 Clue: "${clue.word}: ${clue.number}"
 
+## Score State
+- Blue Team: ${state.revealed.blue.length} / 9 agents found
+- Red Team: ${state.revealed.red.length} / 8 agents found
+
 Unknown cards remaining: ${state.unknown.join(', ')}
 `;
 
@@ -267,6 +249,11 @@ CRITICAL RULES:
 2. If this is your final (+1 bonus) guess and you are not extremely confident, you should strongly consider passing rather than risking a blind guess that might hit a bystander or enemy agent.
 
 Based on your team's discussion, provide your NEXT SINGLE GUESS.
+
+STRATEGIC GUIDELINES:
+1. Endgame Urgency: If the opponent only needs 1 or 2 more words to win, your "conservative" nature should shift to "desperate." 
+2. The "Loss Clock": If you pass the turn and the opponent is likely to win, you have lost. Therefore, in a losing board state, a low-confidence guess is better than no guess. Only pass if you are genuinely afraid of hitting the assassin or if you truly believe the opponent won't win next turn.
+
 Format: GUESS: [WORD]
 
 Then briefly explain why, conversationally. If you want to stop guessing and pass the turn, say: PASS`;

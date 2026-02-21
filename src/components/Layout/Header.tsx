@@ -2,12 +2,11 @@ import { useGameStore } from '../../store/gameStore';
 import { motion } from 'framer-motion';
 
 const PHASE_LABELS: Record<string, string> = {
-  setup: 'Ready to Play',
+  setup: 'Waiting to Start...',
   spymaster_thinking: 'Spymaster Thinking...',
   clue_reveal: 'Clue Revealed!',
-  operatives_reflecting: 'Operatives Reflecting...',
   team_conversation: 'Team Discussion',
-  guessing: 'Guessing Phase',
+  guessing: 'Waiting for Guess...',
   guess_reactions: 'Reactions',
   switch_team: 'Switching Teams...',
   game_over: 'Game Over!',

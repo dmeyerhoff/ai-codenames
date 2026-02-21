@@ -18,6 +18,7 @@ export default function PlayerPanel({ team }: Props) {
   const currentTeam = useGameStore(s => s.currentTeam);
   const phase = useGameStore(s => s.phase);
   const messages = useGameStore(s => s.messages);
+  const isVideoMode = useGameStore(s => s.isVideoMode);
   const isActiveTeam = currentTeam === team;
 
   // Local state to hold the preview text for a minimum duration
@@ -36,7 +37,6 @@ export default function PlayerPanel({ team }: Props) {
     if (activePlayerId !== playerId) return null;
     switch (phase) {
       case 'spymaster_thinking':
-      case 'operatives_reflecting':
         return '💭';
       case 'team_conversation':
       case 'guess_reactions':
@@ -62,7 +62,7 @@ export default function PlayerPanel({ team }: Props) {
         const words = latest.content.split(' ');
         currentText = words.length <= 10 ? latest.content : words.slice(0, 10).join(' ') + '...';
         // Only show animated dots if the action is still ongoing (thinking phase)
-        isThinking = phase.includes('thinking') || phase.includes('reflecting');
+        isThinking = phase.includes('thinking');
       }
     }
 
@@ -91,23 +91,25 @@ export default function PlayerPanel({ team }: Props) {
         <button
           onClick={() => canSelectModel && setSelectingPlayerId(player.id)}
           disabled={!canSelectModel}
-          className={`w-full flex items-center gap-2 text-left rounded-lg transition-colors group ${canSelectModel ? 'hover:bg-[#E8E0D0]/50 p-1 -m-1' : ''
+          className={`w-full flex items-center gap-3 text-left transition-colors group ${isVideoMode
+              ? `p-3 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 shadow-xl ${isPlayerActive ? 'ring-2 ring-white/30 bg-black/40' : 'hover:bg-black/30'}`
+              : `rounded-lg ${canSelectModel ? 'hover:bg-[#E8E0D0]/50 p-1 -m-1' : ''}`
             }`}
         >
-          <PlayerAvatar player={player} isActive={isPlayerActive || selectingPlayerId === player.id} size="sm" />
+          <PlayerAvatar player={player} isActive={isPlayerActive || selectingPlayerId === player.id} size={isVideoMode ? 'md' : 'sm'} />
           <div className="min-w-0 flex-1 relative">
-            <div className="text-[#3A3428] text-xs font-medium flex items-center relative">
-              <span className="truncate max-w-[100px]">{player.name}</span>
+            <div className={`flex items-center relative font-medium ${isVideoMode ? 'text-white text-sm' : 'text-[#3A3428] text-xs'}`}>
+              <span className="truncate max-w-[100px] drop-shadow-sm">{player.name}</span>
               <span className="ml-1 text-sm flex-none drop-shadow-sm">{getPlayerStateEmoji(player.id)}</span>
               {player.isCaptain && <span className="ml-1 flex-none text-[#D94F3B] text-[10px] font-bold">CPT</span>}
             </div>
-            <div className="text-[#B8A880] text-[10px] flex items-center justify-between pr-2 mt-0.5">
+            <div className={`flex items-center justify-between pr-2 mt-0.5 ${isVideoMode ? 'text-white/60 text-xs' : 'text-[#B8A880] text-[10px]'}`}>
               <div className="flex items-center gap-1.5">
                 {aiModel && <ProviderLogo provider={aiModel.provider} className="w-3.5 h-3.5 opacity-60" />}
-                <span>{roleLabel}</span>
+                <span className="drop-shadow-sm">{roleLabel}</span>
               </div>
               {canSelectModel && (
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity font-bold uppercase tracking-wider text-[#B8A880]">
+                <span className={`opacity-0 group-hover:opacity-100 transition-opacity font-bold uppercase tracking-wider ${isVideoMode ? 'text-white/80' : 'text-[#B8A880]'}`}>
                   Swap
                 </span>
               )}
@@ -154,15 +156,17 @@ export default function PlayerPanel({ team }: Props) {
   };
 
   return (
-    <div className={`rounded-xl border ${teamColor} bg-white/60 ${teamBg} p-3 shadow-sm ${isActiveTeam ? 'ring-2 ring-offset-1 ' + (team === 'blue' ? 'ring-[#3B7DD8]/40' : 'ring-[#D94F3B]/40') : ''}`}>
-      <h3 className={`${teamLabel} font-display text-xs uppercase tracking-wider mb-3`}>
-        {team} Team {isActiveTeam && '⬤'}
-      </h3>
+    <div className={isVideoMode ? 'flex flex-col gap-3' : `rounded-xl border ${teamColor} bg-white/60 ${teamBg} p-3 shadow-sm ${isActiveTeam ? 'ring-2 ring-offset-1 ' + (team === 'blue' ? 'ring-[#3B7DD8]/40' : 'ring-[#D94F3B]/40') : ''}`}>
+      {!isVideoMode && (
+        <h3 className={`${teamLabel} font-display text-xs uppercase tracking-wider mb-3`}>
+          {team} Team {isActiveTeam && '⬤'}
+        </h3>
+      )}
 
-      <div className="space-y-2">
+      <div className={isVideoMode ? "space-y-3" : "space-y-2"}>
         {renderPlayer(spymaster, 'Spymaster')}
 
-        <div className="border-t border-[#E8E0D0] pt-2">
+        <div className={isVideoMode ? "pt-1" : "border-t border-[#E8E0D0] pt-2"}>
           {operatives.map(op => renderPlayer(op, 'Operative'))}
         </div>
       </div>

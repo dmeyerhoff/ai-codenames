@@ -11,8 +11,14 @@ interface Props {
 
 export default function ModelSelectorModal({ playerId, onClose }: Props) {
     const players = useGameStore(s => s.players);
+    const masterModel = useGameStore(s => s.masterModel);
     const setPlayerModel = useGameStore(s => s.setPlayerModel);
-    const player = players.find(p => p.id === playerId);
+    const setMasterModel = useGameStore(s => s.setMasterModel);
+
+    const isMaster = playerId === 'master';
+    const player = isMaster
+        ? { id: 'master', name: masterModel.name, model: masterModel.id, role: 'Game Master', team: 'neutral' as const }
+        : players.find(p => p.id === playerId);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [minContext, setMinContext] = useState<number>(0);
@@ -70,7 +76,11 @@ export default function ModelSelectorModal({ playerId, onClose }: Props) {
             });
             return;
         }
-        setPlayerModel(playerId, model.id, model.name);
+        if (isMaster) {
+            setMasterModel(model.id, model.name);
+        } else {
+            setPlayerModel(playerId, model.id, model.name);
+        }
         onClose();
     };
 
@@ -164,7 +174,7 @@ export default function ModelSelectorModal({ playerId, onClose }: Props) {
                         <div>
                             <h3 className="text-[#3A3428] font-bold text-lg leading-tight">Select AI Model</h3>
                             <p className="text-sm text-[#8C7F6A]">
-                                Change model for <strong className={player.team === 'blue' ? 'text-[#3B7DD8]' : 'text-[#D94F3B]'}>{player.name}</strong> ({player.role})
+                                Change model for <strong className={player.team === 'blue' ? 'text-[#3B7DD8]' : player.team === 'red' ? 'text-[#D94F3B]' : 'text-[#8B5CF6]'}>{player.name}</strong> ({player.role})
                             </p>
                         </div>
                         <button
@@ -280,50 +290,56 @@ export default function ModelSelectorModal({ playerId, onClose }: Props) {
                                     </span>
                                 )}
                             </div>
-                            <div className="flex flex-wrap gap-1.5 justify-end w-full sm:w-auto mt-2 sm:mt-0">
-                                <button
-                                    onClick={handleRandomize}
-                                    disabled={getAvailablePool().length === 0}
-                                    title="Randomize THIS player"
-                                    className={`
-                                        px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
-                                        ${getAvailablePool().length > 0
-                                            ? 'bg-[#3A3428] text-[#F8F5F0] hover:bg-[#2A251C]'
-                                            : 'bg-[#D4CDB8] text-[#8C7F6A] cursor-not-allowed opacity-50'
-                                        }
-                                    `}
-                                >
-                                    🎲 1
-                                </button>
-                                <button
-                                    onClick={handleRandomizeTeam}
-                                    disabled={getAvailablePool().length === 0}
-                                    title={`Randomize ${player.team.toUpperCase()} TEAM`}
-                                    className={`
-                                        px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
-                                        ${getAvailablePool().length > 0
-                                            ? (player.team === 'blue' ? 'bg-[#3B7DD8] text-white hover:bg-[#2B5EA0]' : 'bg-[#D94F3B] text-white hover:bg-[#B33A28]')
-                                            : 'bg-[#D4CDB8] text-[#8C7F6A] cursor-not-allowed opacity-50'
-                                        }
-                                    `}
-                                >
-                                    🎲 Team
-                                </button>
-                                <button
-                                    onClick={handleRandomizeAll}
-                                    disabled={getAvailablePool().length === 0}
-                                    title="Randomize ALL players"
-                                    className={`
-                                        px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
-                                        ${getAvailablePool().length > 0
-                                            ? 'bg-gradient-to-r from-[#3B7DD8] to-[#D94F3B] text-white hover:brightness-90'
-                                            : 'bg-[#D4CDB8] text-[#8C7F6A] cursor-not-allowed opacity-50'
-                                        }
-                                    `}
-                                >
-                                    🎲 All
-                                </button>
-                            </div>
+                            {isMaster ? (
+                                <div className="text-xs text-[#8C7F6A] font-bold italic w-full sm:w-auto mt-2 sm:mt-0 px-2 py-1 bg-[#E8E0D0] rounded">
+                                    Game Master must be chosen manually
+                                </div>
+                            ) : (
+                                <div className="flex flex-wrap gap-1.5 justify-end w-full sm:w-auto mt-2 sm:mt-0">
+                                    <button
+                                        onClick={handleRandomize}
+                                        disabled={getAvailablePool().length === 0}
+                                        title="Randomize THIS player"
+                                        className={`
+                                            px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
+                                            ${getAvailablePool().length > 0
+                                                ? 'bg-[#3A3428] text-[#F8F5F0] hover:bg-[#2A251C]'
+                                                : 'bg-[#D4CDB8] text-[#8C7F6A] cursor-not-allowed opacity-50'
+                                            }
+                                        `}
+                                    >
+                                        🎲 1
+                                    </button>
+                                    <button
+                                        onClick={handleRandomizeTeam}
+                                        disabled={getAvailablePool().length === 0}
+                                        title={`Randomize ${player.team.toUpperCase()} TEAM`}
+                                        className={`
+                                            px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
+                                            ${getAvailablePool().length > 0
+                                                ? (player.team === 'blue' ? 'bg-[#3B7DD8] text-white hover:bg-[#2B5EA0]' : 'bg-[#D94F3B] text-white hover:bg-[#B33A28]')
+                                                : 'bg-[#D4CDB8] text-[#8C7F6A] cursor-not-allowed opacity-50'
+                                            }
+                                        `}
+                                    >
+                                        🎲 Team
+                                    </button>
+                                    <button
+                                        onClick={handleRandomizeAll}
+                                        disabled={getAvailablePool().length === 0}
+                                        title="Randomize ALL players"
+                                        className={`
+                                            px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
+                                            ${getAvailablePool().length > 0
+                                                ? 'bg-gradient-to-r from-[#3B7DD8] to-[#D94F3B] text-white hover:brightness-90'
+                                                : 'bg-[#D4CDB8] text-[#8C7F6A] cursor-not-allowed opacity-50'
+                                            }
+                                        `}
+                                    >
+                                        🎲 All
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
 

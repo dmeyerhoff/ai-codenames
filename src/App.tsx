@@ -2,20 +2,57 @@ import Header from './components/Layout/Header';
 import GameBoard from './components/Board/GameBoard';
 import ScoreBar from './components/Board/ScoreBar';
 import PlayerPanel from './components/Players/PlayerPanel';
+import MasterPanel from './components/Players/MasterPanel';
 import ChatPanel from './components/Chat/ChatPanel';
 import GameControls from './components/Controls/GameControls';
+import CinematicOverlay from './components/Game/CinematicOverlay';
 import { useGameStore } from './store/gameStore';
+import { runGame, stopGame } from './engine/orchestrator';
+import { runReplay, stopReplay } from './engine/replayOrchestrator';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function App() {
   const winner = useGameStore(s => s.winner);
-  const currentClue = useGameStore(s => s.currentClue);
   const currentTeam = useGameStore(s => s.currentTeam);
   const phase = useGameStore(s => s.phase);
   const newGame = useGameStore(s => s.newGame);
   const messages = useGameStore(s => s.messages);
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  const clearWinner = useGameStore(s => s.clearWinner);
+  const isVideoMode = useGameStore(s => s.isVideoMode);
+  const isFooterHidden = useGameStore(s => s.isFooterHidden);
+  const toggleFooterHidden = useGameStore(s => s.toggleFooterHidden);
+  const [isChatOpen, setIsChatOpen] = useState(!isVideoMode);
+
+  // Global Hotkeys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const state = useGameStore.getState();
+        if (state.isRunning) {
+          state.playbackMode ? stopReplay() : stopGame();
+        } else {
+          if (state.winner) {
+            state.newGame();
+            setTimeout(runGame, 100);
+          } else {
+            state.playbackMode ? runReplay() : runGame();
+          }
+        }
+      } else if (e.code === 'Escape' || e.key === 'q') {
+        stopGame();
+        stopReplay();
+        setTimeout(() => useGameStore.getState().newGame(), 100);
+      } else if (e.key === 'f') {
+        toggleFooterHidden();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleFooterHidden]);
 
   // Derive ambient background state classes
   const ambientBgClass = phase === 'setup' || phase === 'game_over'
@@ -24,7 +61,7 @@ export default function App() {
       ? 'bg-ambient-blue'
       : 'bg-ambient-red';
 
-  const phaseStateClass = phase.includes('thinking') || phase.includes('reflecting')
+  const phaseStateClass = phase.includes('thinking')
     ? 'state-thinking'
     : phase.includes('conversation') || phase === 'guess_reactions'
       ? 'state-chatting'
@@ -51,18 +88,27 @@ export default function App() {
 
   return (
     <div className={`h-screen table-bg text-[#3A3428] flex flex-col overflow-hidden relative ${phaseStateClass}`} style={{ fontFamily: "'Nunito', sans-serif" }}>
+      <CinematicOverlay />
       {/* Ambient Full-screen Overlay */}
       <div className={`absolute inset-0 pointer-events-none transition-colors duration-1000 z-0 ${ambientBgClass}`} />
 
-      <div className="relative z-10 flex-none">
-        <Header />
-      </div>
+      {/* Cinematic Vignette */}
+      {isVideoMode && (
+        <div className="absolute inset-0 pointer-events-none z-[40] shadow-[inset_0_0_200px_rgba(0,0,0,0.8)]" />
+      )}
 
-      <div className="flex-1 flex gap-3 px-3 pb-3 min-h-0 pt-3 relative z-10">
-        {/* Left sidebar - Teams */}
-        <div className="w-48 flex-shrink-0 flex flex-col gap-3 h-full relative z-20 hidden md:flex p-1 -m-1">
+      {!isVideoMode && (
+        <div className="relative z-10 flex-none">
+          <Header />
+        </div>
+      )}
+
+      <div className="flex-1 flex gap-3 px-3 pb-3 min-h-0 pt-3 relative z-10 overflow-hidden">
+        {/* Left sidebar - Blue Team */}
+        <div className={`flex-shrink-0 flex flex-col gap-3 z-20 hidden md:flex ${isVideoMode ? 'absolute left-4 top-1/2 -translate-y-1/2 w-56' : 'w-48 h-full relative p-1 -m-1'
+          }`}>
           <PlayerPanel team="blue" />
-          <PlayerPanel team="red" />
+          {!isVideoMode && <MasterPanel />}
         </div>
 
         {/* Center - Board */}
@@ -75,53 +121,35 @@ export default function App() {
             <GameBoard />
           </div>
 
-          {/* Current Clue Display */}
-          <AnimatePresence>
-            {currentClue && (
-              <>
-                {/* Ghost Clue in center */}
-                <motion.div
-                  key="ghost-clue"
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{
-                    opacity: [0, 1, 0],
-                    scale: [0.5, 1.5, 1.8]
-                  }}
-                  transition={{ duration: 2, ease: "easeOut", times: [0, 0.15, 1] }}
-                  className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none"
-                >
-                  <span className={`
-                    inline-block px-12 py-6 rounded-full font-black text-4xl sm:text-6xl tracking-widest shadow-2xl font-display
-                    ${currentTeam === 'blue'
-                      ? 'bg-[#3B7DD8] text-white border-4 border-[#2B5EA0]'
-                      : 'bg-[#D94F3B] text-white border-4 border-[#B33A28]'
-                    }
-                  `}>
-                    {currentClue.word}: {currentClue.number}
-                  </span>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
+          {/* Legacy ghost clue removed in favor of CinematicOverlay */}
 
-          <div className="flex-none mt-auto pt-2 z-10">
-            <GameControls />
-          </div>
+          {!isFooterHidden && (
+            <div className="flex-none mt-auto pt-2 z-10 w-full max-w-4xl mx-auto">
+              <GameControls />
+            </div>
+          )}
         </div>
 
-        {/* Right sidebar - Chat */}
+        {/* Right sidebar - Red Team */}
+        <div className={`flex-shrink-0 flex flex-col gap-3 z-20 hidden md:flex ${isVideoMode ? 'absolute right-4 top-1/2 -translate-y-1/2 w-56' : 'w-48 h-full relative p-1 -m-1'
+          }`}>
+          <PlayerPanel team="red" />
+        </div>
+
+        {/* Chat - Absolute Subtitle Overlay for Video Mode, or regular panel for standard */}
         <AnimatePresence initial={false}>
           {isChatOpen && (
             <motion.div
-              initial={{ width: 0, opacity: 0, marginLeft: 0 }}
-              animate={{ width: 'clamp(18rem, 24rem, 24rem)', opacity: 1, marginLeft: 12 }}
-              exit={{ width: 0, opacity: 0, marginLeft: 0 }}
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 50, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="flex-shrink-0 bg-white/70 rounded-xl border border-[#D4CDB8] shadow-sm flex flex-col min-h-0 overflow-hidden"
+              className={`absolute z-30 flex flex-col min-h-0 overflow-hidden ${isVideoMode
+                ? 'bottom-[6rem] left-1/2 -translate-x-1/2 w-full max-w-2xl h-64 bg-black/40 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl'
+                : 'right-5 bottom-20 w-80 h-[28rem] bg-white/90 border border-[#D4CDB8] shadow-lg rounded-xl'
+                }`}
             >
-              <div className="w-72 lg:w-96 flex flex-col h-full">
-                <ChatPanel />
-              </div>
+              <ChatPanel />
             </motion.div>
           )}
         </AnimatePresence>
@@ -129,9 +157,10 @@ export default function App() {
         {/* Floating Chat Toggle */}
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
-          className="absolute bottom-5 right-5 z-50 bg-white/95 hover:bg-white text-[#3A3428] font-bold py-2.5 px-5 rounded-xl border border-[#D4CDB8] shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+          className={`absolute bottom-5 right-5 z-50 bg-white/95 hover:bg-white text-[#3A3428] font-bold py-2 px-4 rounded-xl border border-[#D4CDB8] shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 ${isVideoMode ? 'opacity-50 hover:opacity-100' : ''}`}
+          title="Toggle Chat Subtitles (Also available via UI)"
         >
-          {isChatOpen ? 'Hide Chat ➡' : '⬅ Show Chat'}
+          {isChatOpen ? '💬 Hide Chat' : '💬 Show Chat'}
         </button>
       </div>
 
@@ -175,6 +204,12 @@ export default function App() {
                   className="w-full py-3 rounded-xl font-bold text-[#8C7F6A] bg-[#E8E0D0] hover:bg-[#D4CDB8] transition-colors"
                 >
                   EXPORT MATCH LOG
+                </button>
+                <button
+                  onClick={clearWinner}
+                  className="w-full py-2 font-bold text-[#8C7F6A]/60 hover:text-[#8C7F6A] transition-colors text-sm uppercase tracking-widest mt-2"
+                >
+                  Close Overlay
                 </button>
               </div>
             </motion.div>

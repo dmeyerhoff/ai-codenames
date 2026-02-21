@@ -29,6 +29,8 @@ export const AVAILABLE_MODELS: AIModel[] = [
   { id: 'anthropic/claude-opus-4.6', name: 'Claude Opus 4.6', provider: 'Anthropic', contextWindowK: 1000, inputCostM: 5.00, outputCostM: 25.00 },
   { id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'Anthropic', contextWindowK: 1000, inputCostM: 3.00, outputCostM: 15.00 },
   { id: 'mistralai/mistral-small-3.2-24b-instruct', name: 'Mistral Small 3.2', provider: 'Mistral', contextWindowK: 131, inputCostM: 0.06, outputCostM: 0.18 },
+  { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B Instruct', provider: 'Meta', contextWindowK: 131, inputCostM: 0.10, outputCostM: 0.32 },
+  { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick', provider: 'Meta', contextWindowK: 1050, inputCostM: 0.15, outputCostM: 0.60 },
 ];
 
 
@@ -123,13 +125,13 @@ const DEMO_PLAYERS: Player[] = [
   },
 ];
 
-// TEST PRESET: Budget-friendly models (~$0.20-0.50 per game)
+// TEST PRESET: User requested AI assignments
 const TEST_PLAYERS: Player[] = [
   // Blue Team
   {
     id: 'blue-spy',
-    name: 'Gemini 3 Flash',
-    model: 'google/gemini-3-flash-preview',
+    name: 'Kimi K2.5',
+    model: 'moonshotai/kimi-k2.5',
     team: 'blue',
     role: 'spymaster',
     color: '#10B981',
@@ -148,7 +150,7 @@ const TEST_PLAYERS: Player[] = [
   },
   {
     id: 'blue-op2',
-    name: 'Gemini 3 Flash B',
+    name: 'Gemini 3 Flash',
     model: 'google/gemini-3-flash-preview',
     team: 'blue',
     role: 'operative',
@@ -158,8 +160,8 @@ const TEST_PLAYERS: Player[] = [
   },
   {
     id: 'blue-op3',
-    name: 'DeepSeek V3.2 B',
-    model: 'deepseek/deepseek-v3.2',
+    name: 'Mistral Small 3.2',
+    model: 'mistralai/mistral-small-3.2-24b-instruct',
     team: 'blue',
     role: 'operative',
     color: '#06B6D4',
@@ -169,8 +171,8 @@ const TEST_PLAYERS: Player[] = [
   // Red Team
   {
     id: 'red-spy',
-    name: 'DeepSeek V3.2 C',
-    model: 'deepseek/deepseek-v3.2',
+    name: 'GLM-5',
+    model: 'z-ai/glm-5',
     team: 'red',
     role: 'spymaster',
     color: '#F472B6',
@@ -179,8 +181,8 @@ const TEST_PLAYERS: Player[] = [
   },
   {
     id: 'red-op1',
-    name: 'Gemini 3 Flash C',
-    model: 'google/gemini-3-flash-preview',
+    name: 'Grok 4.1 Fast',
+    model: 'x-ai/grok-4.1-fast',
     team: 'red',
     role: 'operative',
     color: '#F59E0B',
@@ -189,8 +191,8 @@ const TEST_PLAYERS: Player[] = [
   },
   {
     id: 'red-op2',
-    name: 'DeepSeek V3.2 D',
-    model: 'deepseek/deepseek-v3.2',
+    name: 'MiniMax M2.5',
+    model: 'minimax/minimax-m2.5',
     team: 'red',
     role: 'operative',
     color: '#EF4444',
@@ -199,8 +201,8 @@ const TEST_PLAYERS: Player[] = [
   },
   {
     id: 'red-op3',
-    name: 'Gemini 3 Flash D',
-    model: 'google/gemini-3-flash-preview',
+    name: 'Qwen 3.5 Plus',
+    model: 'qwen/qwen3.5-plus-02-15',
     team: 'red',
     role: 'operative',
     color: '#A78BFA',

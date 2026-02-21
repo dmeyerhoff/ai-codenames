@@ -40,7 +40,7 @@ export async function callOpenRouter(
 
   if (!onChunk) {
     const data = await response.json();
-    return data.choices[0].message.content;
+    return data.choices[0].message.content || '';
   }
 
   // Streaming
@@ -61,9 +61,10 @@ export async function callOpenRouter(
 
       try {
         const parsed = JSON.parse(data);
-        const content = parsed.choices?.[0]?.delta?.content;
-        if (content) {
-          fullText += content;
+        const delta = parsed.choices?.[0]?.delta;
+
+        if (delta?.content) {
+          fullText += delta.content;
           onChunk(fullText);
         }
       } catch {

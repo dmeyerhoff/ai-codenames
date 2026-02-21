@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 interface CardProps {
   card: CardType;
   showSpymaster?: boolean;
+  isScanned?: boolean;
 }
 
 const REVEALED_STYLES: Record<string, { bg: string; border: string; text: string }> = {
@@ -37,8 +38,10 @@ const SPYMASTER_DOTS: Record<string, string> = {
   assassin: 'bg-[#2C2C2C]',
 };
 
-export default function Card({ card, showSpymaster }: CardProps) {
+export default function Card({ card, showSpymaster, isScanned }: CardProps) {
   const isRevealedMode = useGameStore(s => s.isRevealedMode);
+  const isBoardRevealed = useGameStore(s => s.isBoardRevealed);
+  const isVideoMode = useGameStore(s => s.isVideoMode);
   const revealed = card.revealed;
   const style = REVEALED_STYLES[card.type];
 
@@ -74,18 +77,23 @@ export default function Card({ card, showSpymaster }: CardProps) {
   };
 
   // Subtle hints for unrevealed cards if the user toggled the Reveal toggle
-  const hintBorder = isRevealedMode && !revealed ? style.border : 'border-[#D4CDB8]';
+  const hintBorder = isRevealedMode && !revealed ? style.border : (isScanned && isVideoMode ? 'border-[#3B7DD8]/50' : 'border-[#D4CDB8]');
   const hintBg = isRevealedMode && !revealed && card.type !== 'bystander'
     ? (card.type === 'blue' ? 'bg-[#3B7DD8]/10' : card.type === 'red' ? 'bg-[#D94F3B]/10' : 'bg-[#2C2C2C]/10')
-    : 'bg-[#F5F0E8]';
+    : (isScanned && isVideoMode ? 'bg-[#3B7DD8]/5' : 'bg-[#F5F0E8]');
 
   return (
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1, zIndex: 1 }}
+      animate={{
+        scale: isScanned && isVideoMode ? 1.05 : 1,
+        opacity: 1,
+        zIndex: isScanned && isVideoMode ? 5 : 1,
+        y: isScanned && isVideoMode ? -5 : 0
+      }}
       transition={{
         delay: card.position * 0.02,
-        duration: 0.2,
+        duration: 0.3,
         scale: { type: "spring", stiffness: 400, damping: 25 },
         zIndex: { delay: 0.1 }
       }}
@@ -110,10 +118,16 @@ export default function Card({ card, showSpymaster }: CardProps) {
           className={`absolute inset-0 backface-hidden rounded-lg ${hintBg} border-2 ${hintBorder} shadow-md group-hover:shadow-xl transition-all duration-300 card-glow flex items-center justify-center text-center`}
           style={{ backfaceVisibility: 'hidden' }}
         >
-          <div className="px-2 relative">
-            <span className="font-extrabold text-[#3A3428] text-[11px] sm:text-sm leading-tight tracking-wide uppercase">
+          <div className="px-2 relative w-full h-full flex flex-col items-center justify-center">
+            <motion.div
+              initial={{ rotateX: -180 }}
+              animate={{ rotateX: isBoardRevealed ? 0 : -180 }}
+              transition={{ duration: 0.6, delay: card.position * 0.05, type: 'spring', bounce: 0.4 }}
+              className="font-extrabold text-[#3A3428] text-[11px] sm:text-sm leading-tight tracking-wide uppercase inline-block drop-shadow-sm"
+              style={{ backfaceVisibility: 'hidden', transformStyle: 'preserve-3d' }}
+            >
               {card.word}
-            </span>
+            </motion.div>
             {showSpymaster && (
               <span className={`absolute -bottom-2 right-0 w-2 h-2 rounded-full ${SPYMASTER_DOTS[card.type]}`} />
             )}

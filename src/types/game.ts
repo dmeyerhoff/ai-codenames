@@ -37,17 +37,17 @@ export interface ChatMessage {
   playerName: string;
   team: Team;
   content: string;
-  type: 'internal_monologue' | 'conversation' | 'clue' | 'guess' | 'reaction' | 'system' | 'summary';
+  type: 'internal_monologue' | 'conversation' | 'clue' | 'guess' | 'reaction' | 'system' | 'summary' | 'guess_result';
   prompt?: string;
   hidden?: boolean;
   timestamp: number;
+  durationMs?: number;
 }
 
 export type GamePhase =
   | 'setup'
   | 'spymaster_thinking'
   | 'clue_reveal'
-  | 'operatives_reflecting'
   | 'team_conversation'
   | 'guessing'
   | 'guess_reactions'
@@ -74,7 +74,14 @@ export interface GameState {
   speed: number;
   ttsEnabled: boolean;
   conversationRound: number;
-  operativeReflections: Record<string, string>;
   isRevealedMode: boolean;
-  thinkingPhaseEnabled: boolean;
+  isVideoMode: boolean;
+  isBoardRevealed: boolean;
+  isFooterHidden: boolean;
+  masterModel: { id: string; name: string };
+  playbackMode: boolean;
+  playbackMessages: ChatMessage[];
+  playbackSpeed: number;
+  currentPlaybackIndex: number;
+  originalReplayBoard: Card[];
 }
