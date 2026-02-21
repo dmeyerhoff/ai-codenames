@@ -14,7 +14,7 @@ export default function GameBoard() {
       return;
     }
 
-    if (phase.includes('thinking') || phase === 'team_conversation' || phase === 'guessing') {
+    if (phase === 'spymaster_thinking') {
       const interval = setInterval(() => {
         const unrevealed = board.map((c, i) => ({ ...c, originalIndex: i })).filter(c => !c.revealed);
         if (unrevealed.length > 0) {

@@ -40,7 +40,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
 // ═══════════════════════════════════════════════════════
 
 // DEMO PRESET: Original pre-test models (~$2-5 per game)
-const DEMO_PLAYERS: Player[] = [
+export const DEMO_PLAYERS: Player[] = [
   // Blue Team
   {
     id: 'blue-spy',
@@ -54,8 +54,8 @@ const DEMO_PLAYERS: Player[] = [
   },
   {
     id: 'blue-op1',
-    name: 'Claude Sonnet 4.5',
-    model: 'anthropic/claude-sonnet-4.5',
+    name: 'Claude Sonnet 4.6',
+    model: 'anthropic/claude-sonnet-4.6',
     team: 'blue',
     role: 'operative',
     color: '#D97706',
@@ -64,8 +64,8 @@ const DEMO_PLAYERS: Player[] = [
   },
   {
     id: 'blue-op2',
-    name: 'Gemini 3 Pro',
-    model: 'google/gemini-3-pro-preview',
+    name: 'Gemini 3.1 Pro',
+    model: 'google/gemini-3.1-pro-preview',
     team: 'blue',
     role: 'operative',
     color: '#8B5CF6',
@@ -85,8 +85,8 @@ const DEMO_PLAYERS: Player[] = [
   // Red Team
   {
     id: 'red-spy',
-    name: 'Claude Opus 4.5',
-    model: 'anthropic/claude-opus-4.5',
+    name: 'Claude Opus 4.6',
+    model: 'anthropic/claude-opus-4.6',
     team: 'red',
     role: 'spymaster',
     color: '#F472B6',

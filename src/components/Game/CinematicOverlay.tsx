@@ -20,6 +20,10 @@ export default function CinematicOverlay() {
     // Dramatic Clue State
     const [showDramaticClue, setShowDramaticClue] = useState(false);
 
+    // Guess Announcement State
+    const [guessAnnouncement, setGuessAnnouncement] = useState<{ word: string; result: 'pending' | 'correct' | 'wrong' } | null>(null);
+    const lastGuessCountRef = useRef(0);
+
     // Monitor Phase changes for Turn Splashes
     useEffect(() => {
         if (!isVideoMode) return;
@@ -61,9 +65,42 @@ export default function CinematicOverlay() {
         }
     }, [currentClue, phase, isVideoMode]);
 
+    // Detect new guess messages → trigger announcement popup
+    useEffect(() => {
+        if (!isVideoMode) return;
+        const guessMessages = messages.filter(m => m.type === 'guess');
+        if (guessMessages.length > lastGuessCountRef.current) {
+            const latestGuess = guessMessages[guessMessages.length - 1];
+            // Extract the word from "I'll guess WORD."
+            const match = latestGuess.content.match(/guess\s+(\w+)/i);
+            const word = match ? match[1] : latestGuess.content;
+            setGuessAnnouncement({ word, result: 'pending' });
+            lastGuessCountRef.current = guessMessages.length;
+        }
+    }, [messages, isVideoMode]);
+
+    // Detect guess result → flash correct/wrong, then dismiss quickly
+    useEffect(() => {
+        if (!isVideoMode || !guessAnnouncement || guessAnnouncement.result !== 'pending') return;
+        const resultMessages = messages.filter(m => m.type === 'guess_result');
+        const latestResult = resultMessages.length > 0 ? resultMessages[resultMessages.length - 1] : null;
+        if (latestResult && latestResult.content.includes(guessAnnouncement.word)) {
+            const isCorrect = latestResult.content.includes(currentTeam);
+            setGuessAnnouncement(prev => prev ? { ...prev, result: isCorrect ? 'correct' : 'wrong' } : null);
+            const t = setTimeout(() => setGuessAnnouncement(null), 300);
+            return () => clearTimeout(t);
+        }
+    }, [messages, isVideoMode, guessAnnouncement, currentTeam]);
+
+    // Clear guess announcement when phase changes away from guessing
+    useEffect(() => {
+        if (phase !== 'guessing') {
+            setGuessAnnouncement(null);
+        }
+    }, [phase]);
+
     // Derived Spymaster State
     const activeSpymaster = phase === 'spymaster_thinking' ? players.find(p => p.id === activePlayerId && p.role === 'spymaster') : null;
-    const aiModel = activeSpymaster ? AVAILABLE_MODELS.find(m => m.id === activeSpymaster.model) : null;
 
     // Get active Spymaster thinking text
     const spymasterMessages = activeSpymaster ? messages.filter(m => m.playerId === activeSpymaster.id && m.type !== 'system') : [];
@@ -131,6 +168,12 @@ export default function CinematicOverlay() {
             subtitleRef.current.scrollTop = subtitleRef.current.scrollHeight;
         }
     }, [latestMessage?.content, messages.length]);
+
+    // Spymaster model for centered display
+    const aiModel = activeSpymaster ? AVAILABLE_MODELS.find(m => m.id === activeSpymaster.model) : null;
+
+    // Operative sidebar — only during operative phases
+    const sidebarSide = currentTeam === 'blue' ? 'left' : 'right';
 
     if (!isVideoMode) return null;
 
@@ -228,7 +271,7 @@ export default function CinematicOverlay() {
                 )}
             </AnimatePresence>
 
-            {/* Turn Splash Overlay (Text Only) */}
+            {/* Turn Splash Overlay (Text Only — "BLUE SPYMASTER" / "BLUE OPERATIVES") */}
             <AnimatePresence>
                 {showTurnSplash && (
                     <motion.div
@@ -254,14 +297,14 @@ export default function CinematicOverlay() {
                 )}
             </AnimatePresence>
 
-            {/* Spymaster Info (Avatar + Name) - Fluidly moves from splash-relative to top-relative */}
+            {/* Spymaster Info (Avatar + Name) — Fluidly moves from center splash to top */}
             <AnimatePresence>
                 {activeSpymaster && (
                     <motion.div
                         initial={{ opacity: 0, y: 100, scale: 0.8 }}
                         animate={{
                             opacity: 1,
-                            y: showTurnSplash ? 0 : -240, // Centered under splash, then moves to top
+                            y: showTurnSplash ? 0 : -240,
                             scale: showTurnSplash ? 1.4 : 1.0
                         }}
                         exit={{ opacity: 0, y: -300 }}
@@ -269,26 +312,63 @@ export default function CinematicOverlay() {
                         className="absolute z-20 flex flex-col items-center justify-center"
                     >
                         {aiModel && <ProviderLogo provider={aiModel.provider} className="w-24 h-24 drop-shadow-2xl mb-4" />}
-                        <h3 className={`text-3xl font-black font-display tracking-widest uppercase drop-shadow-lg ${currentTeam === 'blue' ? 'text-blue-300' : 'text-red-300'}`}>
+                        <h3 className={`text-4xl font-black font-display tracking-widest uppercase drop-shadow-lg ${currentTeam === 'blue' ? 'text-blue-300' : 'text-red-300'}`}>
                             {activeSpymaster.name}
                         </h3>
-                        <p className="text-white/70 tracking-widest text-sm uppercase font-semibold mt-1 drop-shadow-md">SPYMASTER</p>
+                        <p className="text-white/70 tracking-widest text-base uppercase font-semibold mt-1 drop-shadow-md">SPYMASTER</p>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Operative Roster — all operatives visible, moves up after splash like spymaster */}
+            {/* Operative Cards — centered splash, then sidebar */}
             <AnimatePresence>
-                {isOperativePhase && teamOperatives.length > 0 && (
+                {isOperativePhase && showTurnSplash && teamOperatives.length > 0 && (
                     <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{
-                            opacity: 1,
-                            y: showTurnSplash ? 0 : -200,
-                        }}
-                        exit={{ opacity: 0, y: -300 }}
-                        transition={{ duration: 0.8, type: 'spring', bounce: 0.25 }}
-                        className="absolute z-20 flex items-end justify-center gap-12"
+                        key={`ops-splash-${currentTeam}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.4 }}
+                        className="absolute inset-0 z-20 flex flex-row items-center justify-center gap-12"
+                    >
+                        {teamOperatives.map((op, i) => {
+                            const opModel = AVAILABLE_MODELS.find(m => m.id === op.model);
+                            return (
+                                <motion.div
+                                    key={op.id}
+                                    initial={{ opacity: 0, y: 40, scale: 0.8 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1.2 }}
+                                    transition={{ duration: 0.5, type: 'spring', bounce: 0.2, delay: i * 0.15 }}
+                                    className={`flex flex-col items-center p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 shadow-xl ${
+                                        currentTeam === 'blue' ? 'cinematic-active-pulse-blue' : 'cinematic-active-pulse-red'
+                                    }`}
+                                >
+                                    {opModel && <ProviderLogo provider={opModel.provider} className="w-24 h-24 drop-shadow-2xl" />}
+                                    <h3 className={`mt-2 text-xl font-black font-display tracking-wider uppercase drop-shadow-lg ${
+                                        currentTeam === 'blue' ? 'text-blue-300' : 'text-red-300'
+                                    }`}>{op.name}</h3>
+                                    <p className="text-white/60 tracking-widest uppercase font-semibold drop-shadow-md text-sm mt-0.5">
+                                        {op.isCaptain ? 'CAPTAIN' : 'OPERATIVE'}
+                                    </p>
+                                </motion.div>
+                            );
+                        })}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Operative Sidebar — after splash */}
+            <AnimatePresence>
+                {isOperativePhase && !showTurnSplash && teamOperatives.length > 0 && (
+                    <motion.div
+                        key={`ops-sidebar-${currentTeam}`}
+                        initial={{ opacity: 0, x: sidebarSide === 'left' ? -60 : 60 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: sidebarSide === 'left' ? -60 : 60 }}
+                        transition={{ duration: 0.5, type: 'spring', bounce: 0.2 }}
+                        className={`absolute top-0 bottom-0 z-20 flex flex-col gap-4 items-center justify-center ${
+                            sidebarSide === 'left' ? 'left-4' : 'right-4'
+                        }`}
                     >
                         {teamOperatives.map((op, i) => {
                             const isActive = activePlayerId === op.id;
@@ -298,43 +378,48 @@ export default function CinematicOverlay() {
                             return (
                                 <motion.div
                                     key={op.id}
-                                    initial={{ opacity: 0, y: 40 }}
+                                    initial={{ opacity: 0, x: sidebarSide === 'left' ? -30 : 30 }}
                                     animate={{
-                                        opacity: isActive ? 1 : 0.45,
-                                        y: 0,
-                                        scale: isActive ? 1.2 : 0.8,
+                                        opacity: isActive ? 1 : 0.4,
+                                        x: 0,
+                                        scale: isActive ? 1.05 : 0.9,
                                     }}
-                                    transition={{
-                                        duration: 0.5,
-                                        type: 'spring',
-                                        bounce: 0.2,
-                                        delay: showTurnSplash ? i * 0.15 : 0,
-                                    }}
-                                    className="flex flex-col items-center"
+                                    transition={{ duration: 0.4, type: 'spring', bounce: 0.2, delay: i * 0.1 }}
+                                    className={`flex flex-col items-center p-3 rounded-2xl ${
+                                        isActive
+                                            ? `bg-black/40 backdrop-blur-md border border-white/20 shadow-xl ${
+                                                currentTeam === 'blue' ? 'cinematic-active-pulse-blue' : 'cinematic-active-pulse-red'
+                                              }`
+                                            : 'bg-black/15 backdrop-blur-sm border border-white/5'
+                                    }`}
                                 >
-                                    {/* Logo with pulse for active */}
                                     <motion.div
                                         animate={isActive ? { scale: [1, 1.06, 1] } : { scale: 1 }}
                                         transition={isActive ? { repeat: Infinity, duration: 2, ease: 'easeInOut' } : {}}
                                     >
-                                        {opModel && <ProviderLogo provider={opModel.provider} className={isActive ? 'w-24 h-24 drop-shadow-2xl' : 'w-14 h-14 drop-shadow-lg'} />}
+                                        {opModel && (
+                                            <ProviderLogo
+                                                provider={opModel.provider}
+                                                className={isActive ? 'w-16 h-16 drop-shadow-2xl' : 'w-10 h-10 drop-shadow-lg'}
+                                            />
+                                        )}
                                     </motion.div>
-
-                                    {/* Name + Role */}
-                                    <h3 className={`mt-2 font-black font-display tracking-widest uppercase drop-shadow-lg ${isActive ? 'text-xl' : 'text-xs'} ${currentTeam === 'blue' ? 'text-blue-300' : 'text-red-300'}`}>
+                                    <h3 className={`mt-2 font-black font-display tracking-wider uppercase drop-shadow-lg ${
+                                        isActive ? 'text-base' : 'text-xs'
+                                    } ${currentTeam === 'blue' ? 'text-blue-300' : 'text-red-300'}`}>
                                         {op.name}
                                     </h3>
-                                    <p className={`text-white/60 tracking-widest uppercase font-semibold drop-shadow-md ${isActive ? 'text-[11px] mt-0.5' : 'text-[9px]'}`}>
+                                    <p className={`text-white/60 tracking-widest uppercase font-semibold drop-shadow-md ${
+                                        isActive ? 'text-xs mt-0.5' : 'text-[10px]'
+                                    }`}>
                                         {op.isCaptain ? 'CAPTAIN' : 'OPERATIVE'}
                                     </p>
-
-                                    {/* Thinking / phase emoji */}
                                     <motion.span
                                         key={`${op.id}-${opEmoji}`}
                                         initial={{ scale: 0 }}
                                         animate={{ scale: 1 }}
                                         transition={{ type: 'spring', delay: 0.15 }}
-                                        className={isActive ? 'text-2xl mt-1' : 'text-sm mt-0.5'}
+                                        className={isActive ? 'text-lg mt-1' : 'text-xs mt-0.5'}
                                     >
                                         {opEmoji}
                                     </motion.span>
@@ -353,11 +438,11 @@ export default function CinematicOverlay() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 50 }}
                         transition={{ duration: 0.5, type: 'spring' }}
-                        className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-5xl z-30 px-6"
+                        className="absolute inset-0 flex items-center justify-center z-30 px-6"
                     >
                         <div
                             ref={subtitleRef}
-                            className="bg-black/30 backdrop-blur-md border border-white/15 text-white/90 p-5 rounded-2xl text-sm md:text-base leading-relaxed max-h-[35vh] overflow-y-auto scroll-smooth scrollbar-none space-y-3"
+                            className="bg-black/40 border border-white/15 text-white/90 p-6 rounded-2xl text-base md:text-lg leading-relaxed max-h-[60vh] w-full max-w-3xl overflow-y-auto scroll-smooth scrollbar-none space-y-3"
                         >
                             {teamConversationMessages.map(msg => {
                                 const msgModel = AVAILABLE_MODELS.find(m => m.id === players.find(p => p.id === msg.playerId)?.model);
@@ -369,8 +454,8 @@ export default function CinematicOverlay() {
                                         transition={{ duration: 0.3 }}
                                     >
                                         <div className="flex items-center gap-2 mb-1">
-                                            {msgModel && <ProviderLogo provider={msgModel.provider} className="w-4 h-4 opacity-70" />}
-                                            <span className={`text-xs font-bold tracking-widest uppercase ${currentTeam === 'blue' ? 'text-blue-300/80' : 'text-red-300/80'}`}>
+                                            {msgModel && <ProviderLogo provider={msgModel.provider} className="w-5 h-5 opacity-70" />}
+                                            <span className={`text-sm font-bold tracking-widest uppercase ${currentTeam === 'blue' ? 'text-blue-300/80' : 'text-red-300/80'}`}>
                                                 {msg.playerName}
                                             </span>
                                         </div>
@@ -399,7 +484,7 @@ export default function CinematicOverlay() {
                         className="absolute top-6 right-8 z-30 flex items-center gap-3"
                     >
                         <span className="text-5xl drop-shadow-lg">{phaseInfo.emoji}</span>
-                        <span className="text-white/60 text-sm font-bold tracking-[0.3em] uppercase">{phaseInfo.label}</span>
+                        <span className="text-white/60 text-base font-bold tracking-[0.3em] uppercase">{phaseInfo.label}</span>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -416,7 +501,7 @@ export default function CinematicOverlay() {
                     >
                         <div
                             ref={subtitleRef}
-                            className="bg-black/30 backdrop-blur-md border border-white/15 text-white/90 p-6 rounded-2xl text-base md:text-lg italic font-medium leading-relaxed max-h-[60vh] overflow-y-auto scroll-smooth scrollbar-none text-center"
+                            className="bg-black/30 backdrop-blur-md border border-white/15 text-white/90 p-6 rounded-2xl text-lg md:text-xl italic font-medium leading-relaxed max-h-[60vh] overflow-y-auto scroll-smooth scrollbar-none text-center"
                         >
                             <span className="opacity-50 mr-2">"</span>
                             {latestMessage.content}
@@ -427,6 +512,66 @@ export default function CinematicOverlay() {
                             </span>
                             <span className="opacity-50 ml-1">"</span>
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Guess Announcement Overlay — lightweight, no blur */}
+            <AnimatePresence>
+                {guessAnnouncement && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="absolute inset-0 flex items-center justify-center z-[55] bg-black/10"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.5, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.8, opacity: 0, y: -40 }}
+                            transition={{ duration: 0.4, type: 'spring', bounce: 0.25 }}
+                            className="text-center"
+                        >
+                            {/* Label */}
+                            <motion.p
+                                key={guessAnnouncement.result}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 0.8, y: 0 }}
+                                className="text-white/80 text-lg tracking-[0.4em] uppercase font-bold mb-3 drop-shadow-lg"
+                            >
+                                {guessAnnouncement.result === 'pending' ? 'GUESSING...' : guessAnnouncement.result === 'correct' ? 'CORRECT!' : 'MISS!'}
+                            </motion.p>
+
+                            {/* The guess word card */}
+                            <motion.div
+                                animate={guessAnnouncement.result === 'pending'
+                                    ? { scale: [1, 1.02, 1] }
+                                    : { scale: 1 }
+                                }
+                                transition={guessAnnouncement.result === 'pending'
+                                    ? { repeat: Infinity, duration: 1.5, ease: 'easeInOut' }
+                                    : {}
+                                }
+                                className={`px-10 py-6 rounded-2xl border-2 shadow-2xl ${
+                                    guessAnnouncement.result === 'pending'
+                                        ? 'border-white/25 bg-black/50'
+                                        : guessAnnouncement.result === 'correct'
+                                            ? 'border-green-400/50 bg-green-500/15 shadow-[0_0_40px_rgba(34,197,94,0.3)]'
+                                            : 'border-amber-400/50 bg-amber-500/15 shadow-[0_0_40px_rgba(245,158,11,0.3)]'
+                                }`}
+                            >
+                                <h2 className={`text-6xl md:text-7xl font-black font-display uppercase tracking-widest drop-shadow-lg ${
+                                    guessAnnouncement.result === 'pending'
+                                        ? 'text-white'
+                                        : guessAnnouncement.result === 'correct'
+                                            ? 'text-green-300'
+                                            : 'text-amber-300'
+                                }`}>
+                                    {guessAnnouncement.word}
+                                </h2>
+                            </motion.div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

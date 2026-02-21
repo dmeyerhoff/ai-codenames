@@ -123,7 +123,7 @@ export default function Card({ card, showSpymaster, isScanned }: CardProps) {
               initial={{ rotateX: -180 }}
               animate={{ rotateX: isBoardRevealed ? 0 : -180 }}
               transition={{ duration: 0.6, delay: card.position * 0.05, type: 'spring', bounce: 0.4 }}
-              className="font-extrabold text-[#3A3428] text-[11px] sm:text-sm leading-tight tracking-wide uppercase inline-block drop-shadow-sm"
+              className="font-extrabold text-[#3A3428] text-xs sm:text-base leading-tight tracking-wide uppercase inline-block drop-shadow-sm"
               style={{ backfaceVisibility: 'hidden', transformStyle: 'preserve-3d' }}
             >
               {card.word}
@@ -140,7 +140,7 @@ export default function Card({ card, showSpymaster, isScanned }: CardProps) {
           style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
         >
           <div className="px-2 relative">
-            <span className={`font-extrabold ${style.text} text-[11px] sm:text-sm leading-tight tracking-wide uppercase`}>
+            <span className={`font-extrabold ${style.text} text-xs sm:text-base leading-tight tracking-wide uppercase`}>
               {card.word}
             </span>
             {card.type === 'assassin' && (

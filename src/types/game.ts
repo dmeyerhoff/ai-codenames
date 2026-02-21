@@ -80,6 +80,7 @@ export interface GameState {
   isBoardRevealed: boolean;
   isFooterHidden: boolean;
   masterModel: { id: string; name: string };
+  promoMode: boolean;
   playbackMode: boolean;
   playbackMessages: ChatMessage[];
   playbackSpeed: number;

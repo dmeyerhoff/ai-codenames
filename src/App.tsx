@@ -6,13 +6,20 @@ import MasterPanel from './components/Players/MasterPanel';
 import ChatPanel from './components/Chat/ChatPanel';
 import GameControls from './components/Controls/GameControls';
 import CinematicOverlay from './components/Game/CinematicOverlay';
+import ComponentShowcase from './components/Showcase/ComponentShowcase';
 import { useGameStore } from './store/gameStore';
 import { runGame, stopGame } from './engine/orchestrator';
 import { runReplay, stopReplay } from './engine/replayOrchestrator';
+import { runPromo, stopPromo } from './engine/promoOrchestrator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+// Check for showcase mode via URL param
+const isShowcaseMode = new URLSearchParams(window.location.search).get('showcase') === 'true';
+
 export default function App() {
+  if (isShowcaseMode) return <ComponentShowcase />;
+
   const winner = useGameStore(s => s.winner);
   const currentTeam = useGameStore(s => s.currentTeam);
   const phase = useGameStore(s => s.phase);
@@ -24,6 +31,14 @@ export default function App() {
   const toggleFooterHidden = useGameStore(s => s.toggleFooterHidden);
   const [isChatOpen, setIsChatOpen] = useState(!isVideoMode);
 
+  // Auto-start promo mode from URL param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('promo') === 'true') {
+      setTimeout(runPromo, 500);
+    }
+  }, []);
+
   // Global Hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,7 +48,7 @@ export default function App() {
         e.preventDefault();
         const state = useGameStore.getState();
         if (state.isRunning) {
-          state.playbackMode ? stopReplay() : stopGame();
+          state.promoMode ? stopPromo() : state.playbackMode ? stopReplay() : stopGame();
         } else {
           if (state.winner) {
             state.newGame();
@@ -42,7 +57,13 @@ export default function App() {
             state.playbackMode ? runReplay() : runGame();
           }
         }
+      } else if (e.key === 'p') {
+        const state = useGameStore.getState();
+        if (!state.isRunning) {
+          runPromo();
+        }
       } else if (e.code === 'Escape' || e.key === 'q') {
+        stopPromo();
         stopGame();
         stopReplay();
         setTimeout(() => useGameStore.getState().newGame(), 100);
@@ -111,12 +132,13 @@ export default function App() {
       )}
 
       <div className="flex-1 flex gap-3 px-3 pb-3 min-h-0 pt-3 relative z-10 overflow-hidden">
-        {/* Left sidebar - Blue Team */}
-        <div className={`flex-shrink-0 flex flex-col gap-3 z-20 hidden md:flex ${isVideoMode ? 'absolute left-4 top-1/2 -translate-y-1/2 w-56' : 'w-48 h-full relative p-1 -m-1'
-          }`}>
-          <PlayerPanel team="blue" />
-          {!isVideoMode && <MasterPanel />}
-        </div>
+        {/* Left sidebar - Blue Team (hidden in video mode, overlay handles it) */}
+        {!isVideoMode && (
+          <div className="w-48 h-full relative p-1 -m-1 flex-shrink-0 flex flex-col gap-3 z-20 hidden md:flex">
+            <PlayerPanel team="blue" />
+            <MasterPanel />
+          </div>
+        )}
 
         {/* Center - Board */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
@@ -137,11 +159,12 @@ export default function App() {
           )}
         </div>
 
-        {/* Right sidebar - Red Team */}
-        <div className={`flex-shrink-0 flex flex-col gap-3 z-20 hidden md:flex ${isVideoMode ? 'absolute right-4 top-1/2 -translate-y-1/2 w-56' : 'w-48 h-full relative p-1 -m-1'
-          }`}>
-          <PlayerPanel team="red" />
-        </div>
+        {/* Right sidebar - Red Team (hidden in video mode, overlay handles it) */}
+        {!isVideoMode && (
+          <div className="w-48 h-full relative p-1 -m-1 flex-shrink-0 flex flex-col gap-3 z-20 hidden md:flex">
+            <PlayerPanel team="red" />
+          </div>
+        )}
 
         {/* Chat Panel - hidden entirely in video mode (subtitles handled by CinematicOverlay) */}
         {!isVideoMode && (
