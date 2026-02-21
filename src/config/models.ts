@@ -130,8 +130,8 @@ const TEST_PLAYERS: Player[] = [
   // Blue Team
   {
     id: 'blue-spy',
-    name: 'Kimi K2.5',
-    model: 'moonshotai/kimi-k2.5',
+    name: 'Llama 4 Maverick',
+    model: 'meta-llama/llama-4-maverick',
     team: 'blue',
     role: 'spymaster',
     color: '#10B981',

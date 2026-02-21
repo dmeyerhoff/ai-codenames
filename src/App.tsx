@@ -54,6 +54,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleFooterHidden]);
 
+  // Keep chat closed in video mode (subtitles handled by CinematicOverlay)
+  useEffect(() => {
+    if (isVideoMode) {
+      setIsChatOpen(false);
+    }
+  }, [isVideoMode]);
+
   // Derive ambient background state classes
   const ambientBgClass = phase === 'setup' || phase === 'game_over'
     ? 'bg-transparent'
@@ -136,32 +143,33 @@ export default function App() {
           <PlayerPanel team="red" />
         </div>
 
-        {/* Chat - Absolute Subtitle Overlay for Video Mode, or regular panel for standard */}
-        <AnimatePresence initial={false}>
-          {isChatOpen && (
-            <motion.div
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 50, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className={`absolute z-30 flex flex-col min-h-0 overflow-hidden ${isVideoMode
-                ? 'bottom-[6rem] left-1/2 -translate-x-1/2 w-full max-w-2xl h-64 bg-black/40 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl'
-                : 'right-5 bottom-20 w-80 h-[28rem] bg-white/90 border border-[#D4CDB8] shadow-lg rounded-xl'
-                }`}
-            >
-              <ChatPanel />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Chat Panel - hidden entirely in video mode (subtitles handled by CinematicOverlay) */}
+        {!isVideoMode && (
+          <>
+            <AnimatePresence initial={false}>
+              {isChatOpen && (
+                <motion.div
+                  initial={{ y: 50, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 50, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  className="absolute z-30 flex flex-col min-h-0 overflow-hidden right-5 bottom-20 w-80 h-[28rem] bg-white/90 border border-[#D4CDB8] shadow-lg rounded-xl"
+                >
+                  <ChatPanel />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        {/* Floating Chat Toggle */}
-        <button
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          className={`absolute bottom-5 right-5 z-50 bg-white/95 hover:bg-white text-[#3A3428] font-bold py-2 px-4 rounded-xl border border-[#D4CDB8] shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 ${isVideoMode ? 'opacity-50 hover:opacity-100' : ''}`}
-          title="Toggle Chat Subtitles (Also available via UI)"
-        >
-          {isChatOpen ? '💬 Hide Chat' : '💬 Show Chat'}
-        </button>
+            {/* Floating Chat Toggle */}
+            <button
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              className="absolute bottom-5 right-5 z-50 bg-white/95 hover:bg-white text-[#3A3428] font-bold py-2 px-4 rounded-xl border border-[#D4CDB8] shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+              title="Toggle Chat"
+            >
+              {isChatOpen ? '💬 Hide Chat' : '💬 Show Chat'}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Winner overlay */}

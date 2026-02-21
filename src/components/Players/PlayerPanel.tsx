@@ -88,11 +88,13 @@ export default function PlayerPanel({ team }: Props) {
 
     return (
       <div key={player.id} className="relative py-1">
-        <button
+        <motion.button
           onClick={() => canSelectModel && setSelectingPlayerId(player.id)}
           disabled={!canSelectModel}
+          animate={isVideoMode && isPlayerActive ? { scale: 1.08 } : { scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           className={`w-full flex items-center gap-3 text-left transition-colors group ${isVideoMode
-              ? `p-3 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 shadow-xl ${isPlayerActive ? 'ring-2 ring-white/30 bg-black/40' : 'hover:bg-black/30'}`
+              ? `p-3 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 shadow-xl ${isPlayerActive ? `ring-2 ring-white/30 bg-black/40 ${player.team === 'blue' ? 'cinematic-active-pulse-blue' : 'cinematic-active-pulse-red'}` : 'hover:bg-black/30'}`
               : `rounded-lg ${canSelectModel ? 'hover:bg-[#E8E0D0]/50 p-1 -m-1' : ''}`
             }`}
         >
@@ -115,42 +117,44 @@ export default function PlayerPanel({ team }: Props) {
               )}
             </div>
 
-            {/* Chat Bubble Preview */}
-            <AnimatePresence>
-              {hasPreview && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8, x: -10 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, x: -10 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                  className={`
-                  absolute left-full ml-6 -top-2 z-50 w-48 text-[11px] leading-tight
-                  bg-white text-[#3A3428] p-2 rounded-2xl rounded-tl-none
-                  shadow-lg border-2 origin-top-left
-                  ${player.team === 'blue' ? 'border-[#3B7DD8]/50' : 'border-[#D94F3B]/50'}
-                  pointer-events-none
-                `}
-                >
-                  <div className={`
-                  absolute -left-2 top-0 w-3 h-3 bg-white 
-                  border-l-2 border-b-2 transform -skew-x-[20deg] rotate-45
-                  ${player.team === 'blue' ? 'border-[#3B7DD8]/50' : 'border-[#D94F3B]/50'}
-                `} />
-                  <div className="relative z-10 italic whitespace-normal break-words">
-                    "{activePreview.text}"
-                    {activePreview.isThinking && (
-                      <span className="inline-flex ml-1 text-[#8C7F6A]">
-                        <span className="bounce-dot text-[14px]">.</span>
-                        <span className="bounce-dot text-[14px]">.</span>
-                        <span className="bounce-dot text-[14px]">.</span>
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Chat Bubble Preview - hidden in video mode */}
+            {!isVideoMode && (
+              <AnimatePresence>
+                {hasPreview && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                    className={`
+                    absolute left-full ml-6 -top-2 z-50 w-48 text-[11px] leading-tight
+                    bg-white text-[#3A3428] p-2 rounded-2xl rounded-tl-none
+                    shadow-lg border-2 origin-top-left
+                    ${player.team === 'blue' ? 'border-[#3B7DD8]/50' : 'border-[#D94F3B]/50'}
+                    pointer-events-none
+                  `}
+                  >
+                    <div className={`
+                    absolute -left-2 top-0 w-3 h-3 bg-white
+                    border-l-2 border-b-2 transform -skew-x-[20deg] rotate-45
+                    ${player.team === 'blue' ? 'border-[#3B7DD8]/50' : 'border-[#D94F3B]/50'}
+                  `} />
+                    <div className="relative z-10 italic whitespace-normal break-words">
+                      "{activePreview.text}"
+                      {activePreview.isThinking && (
+                        <span className="inline-flex ml-1 text-[#8C7F6A]">
+                          <span className="bounce-dot text-[14px]">.</span>
+                          <span className="bounce-dot text-[14px]">.</span>
+                          <span className="bounce-dot text-[14px]">.</span>
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
           </div>
-        </button>
+        </motion.button>
       </div>
     );
   };

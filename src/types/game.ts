@@ -46,6 +46,7 @@ export interface ChatMessage {
 
 export type GamePhase =
   | 'setup'
+  | 'board_reveal'
   | 'spymaster_thinking'
   | 'clue_reveal'
   | 'team_conversation'

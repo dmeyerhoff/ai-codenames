@@ -160,9 +160,17 @@ export async function runGame() {
   if (store.playbackMode) return;
 
   store.setIsRunning(true);
-  store.setPhase('spymaster_thinking');
+
+  // Board reveal sequence — flip cards in with staggered animation
+  store.setPhase('board_reveal');
+  store.setIsBoardRevealed(false);
+  await delay(300);
+  store.setIsBoardRevealed(true); // triggers the card flip-in animation
+  await delay(store.isVideoMode ? 3000 : 1500); // let the staggered card reveals play out
 
   if (!isRunning()) return;
+
+  store.setPhase('spymaster_thinking');
 
   try {
     while (isRunning()) {
@@ -232,9 +240,9 @@ async function runTeamTurn(team: Team) {
     hidden: false, // Spymaster thinking is always visible
   });
 
-  // Delay starting the AI if in video mode to let the intro text and animations play out sequentially
+  // Delay starting the AI if in video mode to let the team turn splash + spymaster intro play out
   if (s.isVideoMode) {
-    await delay(2500);
+    await delay(4500);
   }
 
   const spymasterResponse = await safeCallPlayerModel(
@@ -313,6 +321,8 @@ async function runTeamTurn(team: Team) {
     .filter(m => m.timestamp < (turnStartMsg?.timestamp || Date.now()) && m.type === 'summary' && m.team === team)
     .map(m => m.content.replace(/^💡\s*/, ''));
 
+  s.setActivePlayer(captain.id); // highlight captain immediately during splash
+
   const captainPrompt = buildConversationPrompt(captain, board, players, clue, [], true, previousTeamSummaries);
   const capMsgId = s.addMessage({
     playerId: captain.id,
@@ -324,7 +334,7 @@ async function runTeamTurn(team: Team) {
   });
 
   if (s.isVideoMode) {
-    await delay(2500); // wait for OPERATIVES splash
+    await delay(2500); // wait for OPERATIVES splash + intro animation
   }
 
   const captainStart = await safeCallPlayerModel(
@@ -338,13 +348,20 @@ async function runTeamTurn(team: Team) {
   generateMessageSummary(captain.id, captain.name, team, captainStart, 'chat', `${clue.word}: ${clue.number}`);
 
   await speakIfEnabled(cleanResponse(captainStart), captain.voiceId);
-  await delay(1000);
+  if (s.isVideoMode) {
+    if (!s.ttsEnabled) {
+      await delay(Math.max(captainStart.length * 20, 2000));
+    }
+  } else {
+    await delay(1000);
+  }
   s.incrementConversationRound();
 
   // Non-captains respond in sequence
   for (const op of nonCaptains) {
     if (!isRunning()) return;
     s.setActivePlayer(op.id);
+    if (s.isVideoMode) await delay(800); // let scale-up transition settle
 
     // Limit conversation context strictly to this exact round
     const msgsThisTurn = getStore().messages.filter(m => m.timestamp >= turnStartMsg.timestamp);
@@ -373,13 +390,20 @@ async function runTeamTurn(team: Team) {
     generateMessageSummary(op.id, op.name, team, response, 'chat', `${clue.word}: ${clue.number}`);
 
     await speakIfEnabled(cleanResponse(response), op.voiceId);
-    await delay(1000);
+    if (s.isVideoMode) {
+      if (!s.ttsEnabled) {
+        await delay(Math.max(response.length * 20, 2000));
+      }
+    } else {
+      await delay(1000);
+    }
     s.incrementConversationRound();
   }
 
   // Optional: one more round if conversation hasn't settled (captain wraps up)
   if (getStore().conversationRound < MAX_CONVERSATION_ROUNDS && isRunning()) {
     s.setActivePlayer(captain.id);
+    if (s.isVideoMode) await delay(800);
     const msgsThisTurn = getStore().messages.filter(m => m.timestamp >= turnStartMsg.timestamp);
     const finalConvo = msgsThisTurn.filter(
       m => m.type === 'conversation' && m.team === team
@@ -405,7 +429,14 @@ async function runTeamTurn(team: Team) {
     // Background summary generation
     generateMessageSummary(captain.id, captain.name, team, finalResponse, 'chat', `${clue.word}: ${clue.number}`);
 
-    await delay(1000);
+    if (s.isVideoMode) {
+      await speakIfEnabled(cleanResponse(finalResponse), captain.voiceId);
+      if (!s.ttsEnabled) {
+        await delay(Math.max(finalResponse.length * 20, 2000));
+      }
+    } else {
+      await delay(1000);
+    }
   }
 
   if (!isRunning()) return;
@@ -555,6 +586,7 @@ async function runTeamTurn(team: Team) {
   for (const op of operatives) {
     if (!isRunning()) return;
     s.setActivePlayer(op.id);
+    if (s.isVideoMode) await delay(800); // let scale-up transition settle
 
     const reactionPrompt = buildReactionPrompt(op, players, previousGuesses, clue, convMessagesReact, previousReactions);
     const reactMsgId = s.addMessage({
@@ -579,7 +611,13 @@ async function runTeamTurn(team: Team) {
     }
 
     await speakIfEnabled(cleanResponse(reaction), op.voiceId);
-    await delay(800);
+    if (s.isVideoMode) {
+      if (!s.ttsEnabled) {
+        await delay(Math.max(reaction.length * 20, 2000));
+      }
+    } else {
+      await delay(800);
+    }
   }
 
   // Rotate captain

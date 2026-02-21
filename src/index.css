@@ -218,3 +218,30 @@ html,
 .state-clue .bg-ambient-red {
   animation: clue-flash 3s ease-in-out infinite;
 }
+
+/* Cinematic active player glow (video mode) */
+@keyframes cinematic-pulse-blue {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(59, 125, 216, 0.15), 0 0 30px rgba(59, 125, 216, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(59, 125, 216, 0.35), 0 0 50px rgba(59, 125, 216, 0.15);
+  }
+}
+
+@keyframes cinematic-pulse-red {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(217, 79, 59, 0.15), 0 0 30px rgba(217, 79, 59, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(217, 79, 59, 0.35), 0 0 50px rgba(217, 79, 59, 0.15);
+  }
+}
+
+.cinematic-active-pulse-blue {
+  animation: cinematic-pulse-blue 2s ease-in-out infinite;
+}
+
+.cinematic-active-pulse-red {
+  animation: cinematic-pulse-red 2s ease-in-out infinite;
+}

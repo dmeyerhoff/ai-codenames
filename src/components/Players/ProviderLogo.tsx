@@ -9,6 +9,7 @@ import openai from '../../assets/logos/openai.svg';
 import qwen from '../../assets/logos/qwen.svg';
 import stepfun from '../../assets/logos/stepfun.svg';
 import zhipu from '../../assets/logos/zhipu.svg';
+import meta from '../../assets/logos/meta.svg';
 
 const LOGO_MAP: Record<string, string> = {
     'anthropic': anthropic,
@@ -22,6 +23,7 @@ const LOGO_MAP: Record<string, string> = {
     'qwen': qwen,
     'stepfun': stepfun,
     'zhipu': zhipu,
+    'meta': meta,
 };
 
 interface Props {
