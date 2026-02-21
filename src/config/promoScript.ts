@@ -1,4 +1,4 @@
-import type { Card, CardType } from '../types/game';
+import type { Card, CardType, ContextSlide } from '../types/game';
 
 interface PromoConversationMessage {
   playerId: string;
@@ -18,6 +18,16 @@ export interface PromoScript {
   conversation: PromoConversationMessage[];
   guesses: PromoGuess[];
   redTeaser: string;
+  introSlides: ContextSlide[];
+  phaseSlides: {
+    thinking: ContextSlide;
+    conversation: ContextSlide;
+    guessing: ContextSlide;
+    reactions: ContextSlide;
+    switchTeam: ContextSlide;
+  };
+  outroSlide: ContextSlide;
+  futureFeaturesSlide: ContextSlide;
 }
 
 // Board from analyzed match data
@@ -77,7 +87,7 @@ export const PROMO_SCRIPT: PromoScript = {
     {
       word: 'SPY',
       type: 'blue',
-      reaction: 'Nice start! SPY was the safest bet on the board.',
+      reaction: 'Bummer! SPY was the safest bet on the board, but who even decides CAPITAL, I warned against that!.',
       reactionPlayerId: 'blue-op2',
     },
     {
@@ -90,4 +100,24 @@ export const PROMO_SCRIPT: PromoScript = {
 
   redTeaser:
     `Blue tripping up on Capital gives us the perfect opening to take the lead. Looking at Pirate, Space, and Wake, I can link all of them beautifully with a single nautical concept...`,
+
+  introSlides: [
+    { title: "AI Codenames", subtitle: "The Ultimate Battle of Intellect", duration: 4000 },
+    { title: "2 Teams. 8 Models.", subtitle: "25 Mysterious Words.", duration: 4000 },
+  ],
+
+  phaseSlides: {
+    thinking: { title: "Phase 1: Analysis", subtitle: "Spymasters find the connections", duration: 3500 },
+    conversation: { title: "Phase 2: Debate", subtitle: "Operatives dissect the clues", duration: 3500 },
+    guessing: { title: "Phase 3: Decision", subtitle: "The Captain makes the final call", duration: 3500 },
+    reactions: { title: "The Aftermath", subtitle: "Mistakes were made", duration: 3500 },
+    switchTeam: { title: "The Cliffhanger", subtitle: "Red Team fights back", duration: 3500 },
+  },
+
+  outroSlide: { title: "Who Wins?", subtitle: "Try AI Codenames Today.", duration: 5000 },
+  futureFeaturesSlide: {
+    title: "Coming Soon",
+    subtitle: "Human Players • AI Personalities • Memory Across Games • More Game Modes",
+    duration: 6000
+  },
 };

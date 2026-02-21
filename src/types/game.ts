@@ -31,6 +31,12 @@ export interface Guess {
   result: CardType | null;
 }
 
+export interface ContextSlide {
+  title: string;
+  subtitle?: string;
+  duration?: number;
+}
+
 export interface ChatMessage {
   id: string;
   playerId: string;
@@ -81,6 +87,7 @@ export interface GameState {
   isFooterHidden: boolean;
   masterModel: { id: string; name: string };
   promoMode: boolean;
+  activeContextSlide: ContextSlide | null;
   playbackMode: boolean;
   playbackMessages: ChatMessage[];
   playbackSpeed: number;

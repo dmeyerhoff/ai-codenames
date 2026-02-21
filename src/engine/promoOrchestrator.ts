@@ -70,6 +70,15 @@ export async function runPromo() {
     store.toggleVideoMode();
   }
 
+  // 1.5 Cinematic Intro Slides
+  for (const slide of PROMO_SCRIPT.introSlides) {
+    if (!shouldContinue()) return;
+    store.setActiveContextSlide(slide);
+    await delay(4000);
+    store.setActiveContextSlide(null);
+    await delay(500);
+  }
+
   // 2. Board reveal
   store.setPhase('board_reveal');
   store.setIsBoardRevealed(false);
@@ -77,6 +86,13 @@ export async function runPromo() {
   store.setIsBoardRevealed(true);
   await delay(3500);
   if (!shouldContinue()) return;
+
+  // 2.5 Phase Slide: Thinking
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.phaseSlides.thinking);
+  await delay(3500);
+  store.setActiveContextSlide(null);
+  await delay(500);
 
   // 3. Spymaster thinking
   const spymaster = getPlayer('blue-spy');
@@ -123,6 +139,13 @@ export async function runPromo() {
   await delay(3500);
   if (!shouldContinue()) return;
 
+  // 5. Phase Slide: Conversation
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.phaseSlides.conversation);
+  await delay(3500);
+  store.setActiveContextSlide(null);
+  await delay(500);
+
   // 5. Team conversation
   store.setPhase('team_conversation');
   store.resetConversationRound();
@@ -156,6 +179,13 @@ export async function runPromo() {
 
   if (!shouldContinue()) return;
 
+  // 5.5 Phase Slide: Guessing
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.phaseSlides.guessing);
+  await delay(3500);
+  store.setActiveContextSlide(null);
+  await delay(500);
+
   // 6. First guess - SPY (correct)
   const captain = getPlayer('blue-op1');
   store.setPhase('guessing');
@@ -186,25 +216,7 @@ export async function runPromo() {
   await delay(750);
   if (!shouldContinue()) return;
 
-  // 7. Reaction to first guess
-  store.setPhase('guess_reactions');
-  const reactor1 = getPlayer(guess1.reactionPlayerId);
-  store.setActivePlayer(reactor1.id);
-
-  const react1MsgId = store.addMessage({
-    playerId: reactor1.id,
-    playerName: reactor1.name,
-    team: 'blue',
-    content: '',
-    type: 'reaction',
-  });
-
-  await Promise.all([
-    simulateTyping(react1MsgId, guess1.reaction, 20),
-    speakIfEnabled(guess1.reaction, reactor1.voiceId),
-  ]);
-
-  await delay(1500);
+  await delay(750);
   if (!shouldContinue()) return;
 
   // 8. Second guess - CAPITAL (bystander)
@@ -233,14 +245,38 @@ export async function runPromo() {
   });
 
   await speakIfEnabled(`${guess2.word}. Bystander`, captain.voiceId);
-  await delay(750);
+  await delay(1500);
   if (!shouldContinue()) return;
 
-  // 9. Reaction to bystander hit
+  // 9. Combined Reactions to the sequence
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.phaseSlides.reactions);
+  await delay(3500);
+  store.setActiveContextSlide(null);
+  await delay(500);
+
   store.setPhase('guess_reactions');
+
+  // Reaction to first guess (now that the whole sequence is done)
+  const reactor1 = getPlayer(guess1.reactionPlayerId);
+  store.setActivePlayer(reactor1.id);
+  const react1MsgId = store.addMessage({
+    playerId: reactor1.id,
+    playerName: reactor1.name,
+    team: 'blue',
+    content: '',
+    type: 'reaction',
+  });
+  await Promise.all([
+    simulateTyping(react1MsgId, guess1.reaction, 20),
+    speakIfEnabled(guess1.reaction, reactor1.voiceId),
+  ]);
+  await delay(1500);
+  if (!shouldContinue()) return;
+
+  // Reaction to bystander hit
   const reactor2 = getPlayer(guess2.reactionPlayerId);
   store.setActivePlayer(reactor2.id);
-
   const react2MsgId = store.addMessage({
     playerId: reactor2.id,
     playerName: reactor2.name,
@@ -248,7 +284,6 @@ export async function runPromo() {
     content: '',
     type: 'reaction',
   });
-
   await Promise.all([
     simulateTyping(react2MsgId, guess2.reaction, 20),
     speakIfEnabled(guess2.reaction, reactor2.voiceId),
@@ -258,6 +293,12 @@ export async function runPromo() {
   if (!shouldContinue()) return;
 
   // 10. Switch to red team — cliffhanger teaser
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.phaseSlides.switchTeam);
+  await delay(3500);
+  store.setActiveContextSlide(null);
+  await delay(500);
+
   store.switchTeam();
   const redSpymaster = getPlayer('red-spy');
   store.setPhase('spymaster_thinking');
@@ -281,6 +322,19 @@ export async function runPromo() {
   ]);
 
   await delay(3000);
+
+  // 12. Cinematic Outro
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.outroSlide);
+  await delay(5000);
+  store.setActiveContextSlide(null);
+  await delay(500);
+
+  // 13. Future Features
+  if (!shouldContinue()) return;
+  store.setActiveContextSlide(PROMO_SCRIPT.futureFeaturesSlide);
+  await delay(6000);
+  store.setActiveContextSlide(null);
 
   // 11. Done
   store.setIsRunning(false);

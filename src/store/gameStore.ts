@@ -36,6 +36,7 @@ interface GameActions {
   setIsBoardRevealed: (v: boolean) => void;
   toggleFooterHidden: () => void;
   setPromoMode: (v: boolean) => void;
+  setActiveContextSlide: (slide: import('../types/game').ContextSlide | null) => void;
 }
 
 type GameStore = GameState & GameActions;
@@ -68,6 +69,7 @@ function createInitialState(): GameState {
     isFooterHidden: false,
     masterModel: { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash' },
     promoMode: false,
+    activeContextSlide: null,
     playbackMode: false,
     playbackMessages: [],
     playbackSpeed: 1,
@@ -181,6 +183,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   toggleFooterHidden: () => set(state => ({ isFooterHidden: !state.isFooterHidden })),
 
   setPromoMode: (v) => set({ promoMode: v }),
+
+  setActiveContextSlide: (slide) => set({ activeContextSlide: slide }),
 
   setPlayerModel: (playerId, modelId, modelName) => set(state => ({
     players: state.players.map(p =>

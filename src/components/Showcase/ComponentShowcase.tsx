@@ -135,7 +135,6 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 }
 
 export default function ComponentShowcase() {
-  const setCurrentClue = useGameStore(s => s.setCurrentClue);
 
   // Override global overflow:hidden so the page can scroll
   useEffect(() => {
