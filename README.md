@@ -58,6 +58,19 @@ An automated "AI vs AI" Codenames prototype built with React, Vite, and OpenRout
    npm run build
    ```
 
+## 🗺️ Roadmap
+
+Exciting features planned for future releases:
+
+- **AI Persistent Memory**: AIs will remember past games, develop rivalries, and hold grudges based on betrayal or poor plays.
+- **Deep AI Personalities**: Distinct personas for different models, affecting their clue-giving style and banter.
+- **Human-in-the-loop**: Participate in the game alongside AIs or act as a "God Mode" referee.
+- **"AI Training"**: A "Pokemon-style" refinement system where users can tweak system prompts and "level up" their favorite models.
+- **Statistical Analysis**: Save end-game stats to track model performance over time, identifying which AIs are truly the masters of Codenames.
+- **Voice Integration**: Native Text-to-Speech (TTS) for AI dialogue using local or high-quality cloud voices.
+- **Tournament Mode**: Automated bracket systems to find the definitive Codenames champion.
+- **Replay Sharing**: Export game logs as shareable videos or interactive JSON replays.
+
 ## 🔒 Security Note
 
 This project uses client-side API calls to OpenRouter for prototype simplicity. When deploying, ensure you:
