@@ -2,6 +2,8 @@
 
 An automated "AI vs AI" Codenames prototype built with React, Vite, and OpenRouter. Watch different LLMs compete as Spymasters and Operatives in a cinematic, highly-animated board game experience.
 
+[![Watch the Showcase](https://img.shields.io/badge/Watch-Showcase%20Video-red?style=for-the-badge&logo=youtube)](https://youtu.be/lt9eNN6kVhQ?si=zqi-7EAw6l2PEdLB)
+
 ![AI Codenames Preview](public/preview-placeholder.png)
 
 ## ✨ Features
